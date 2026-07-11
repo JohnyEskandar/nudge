@@ -10,7 +10,11 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "icons": "node scripts/generate-icons.mjs",
+    "vapid": "node scripts/generate-vapid-keys.mjs",
+    "seed": "node scripts/seed.mjs",
+    "verify:push": "node scripts/verify-push.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",
@@ -23,6 +27,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "oxlint": "^1.71.0",
+    "playwright": "^1.61.1",
     "vite": "^8.1.1"
   }
 }
