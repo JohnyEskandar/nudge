@@ -1,0 +1,6 @@
+project_id = "nudge"
+
+[functions.daily-nudge]
+# The function additionally checks the bearer matches the service role key, so a
+# stray anon-key call is rejected even though it would pass JWT verification.
+verify_jwt = true
