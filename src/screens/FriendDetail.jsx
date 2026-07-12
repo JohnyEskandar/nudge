@@ -1,14 +1,30 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
+  DEFAULT_CADENCE,
   deleteFriend,
   deleteInteraction,
   getFriend,
   listInteractions,
   logCatchUp,
   setCadence,
+  updateFriend,
 } from '../lib/api'
 import { dueLabel, formatDate, lastContactLabel, todayISO } from '../lib/format'
+import FriendForm from '../components/FriendForm'
+
+/**
+ * Says out loud what saving will do to the reminder, so a category change never
+ * moves it behind the user's back. Mirrors the rule in updateFriend.
+ */
+function cadenceHint(friend, draftCategory) {
+  if (friend.category === draftCategory) return null
+
+  const cadenceIsStillDefault = friend.cadence_days === DEFAULT_CADENCE[friend.category]
+  return cadenceIsStillDefault
+    ? `Saving also moves the reminder to every ${DEFAULT_CADENCE[draftCategory]} days.`
+    : `Your ${friend.cadence_days}-day reminder stays as it is.`
+}
 
 export default function FriendDetail() {
   const { id } = useParams()
@@ -25,6 +41,10 @@ export default function FriendDetail() {
 
   const [cadenceDraft, setCadenceDraft] = useState('')
   const [savingCadence, setSavingCadence] = useState(false)
+
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(null)
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -74,6 +94,33 @@ export default function FriendDetail() {
     setSavingCadence(false)
   }
 
+  function startEditing() {
+    setDraft({
+      name: friend.name,
+      category: friend.category,
+      city: friend.city ?? '',
+      notes: friend.notes ?? '',
+    })
+    setError(null)
+    setEditing(true)
+  }
+
+  async function onSaveEdit(e) {
+    e.preventDefault()
+    setSavingEdit(true)
+    setError(null)
+    try {
+      await updateFriend(id, draft, friend)
+      // Reload before leaving the form: the cadence may have moved with the category,
+      // and closing first would flash the stale name and tags for a frame.
+      await load()
+      setEditing(false)
+    } catch (err) {
+      setError(err.message)
+    }
+    setSavingEdit(false)
+  }
+
   async function onDeleteFriend() {
     if (!confirm(`Remove ${friend.name} from your people? This can't be undone.`)) return
     try {
@@ -109,6 +156,43 @@ export default function FriendDetail() {
   const due = dueLabel(friend.days_overdue)
   const cadenceChanged = cadenceDraft !== String(friend.cadence_days)
 
+  // Editing takes over the screen rather than sitting alongside the read-only view —
+  // otherwise notes would be on the page twice, once editable and once not.
+  if (editing) {
+    return (
+      <>
+        <button className="back" onClick={() => setEditing(false)}>
+          ← Cancel
+        </button>
+
+        <h1>Edit {friend.name}</h1>
+
+        {error && <div className="error">{error}</div>}
+
+        <form onSubmit={onSaveEdit}>
+          <FriendForm
+            values={draft}
+            onChange={setDraft}
+            hint={cadenceHint(friend, draft.category)}
+          />
+
+          <div className="row">
+            <button className="btn" type="submit" disabled={savingEdit || !draft.name.trim()}>
+              {savingEdit ? 'Saving…' : 'Save changes'}
+            </button>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              onClick={() => setEditing(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </>
+    )
+  }
+
   return (
     <>
       <button className="back" onClick={() => navigate('/')}>
@@ -123,6 +207,9 @@ export default function FriendDetail() {
             {friend.city && <span className="tag">{friend.city}</span>}
           </div>
         </div>
+        <button className="btn-quiet" onClick={startEditing}>
+          Edit
+        </button>
       </div>
 
       {error && <div className="error">{error}</div>}

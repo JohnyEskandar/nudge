@@ -53,6 +53,39 @@ export async function addFriend({ name, category, city, notes }) {
   )
 }
 
+/**
+ * Category seeds the cadence at insert time (see the friends_seed_reminder_settings
+ * trigger), so changing it later should usually move the reminder too — but only when
+ * the cadence is still sitting at the old category's default. A cadence the user set by
+ * hand is a deliberate choice and survives a re-categorisation untouched.
+ *
+ * `previous` is the friend_overview row being edited: it carries both the old category
+ * and the current cadence_days.
+ */
+export async function updateFriend(id, { name, category, city, notes }, previous) {
+  const friend = unwrap(
+    await supabase
+      .from('friends')
+      .update({
+        name: name.trim(),
+        category,
+        city: city?.trim() || null,
+        notes: notes?.trim() || null,
+      })
+      .eq('id', id)
+      .select()
+      .single(),
+  )
+
+  const categoryChanged = previous.category !== category
+  const cadenceIsStillDefault = previous.cadence_days === DEFAULT_CADENCE[previous.category]
+  if (categoryChanged && cadenceIsStillDefault) {
+    await setCadence(id, DEFAULT_CADENCE[category])
+  }
+
+  return friend
+}
+
 export async function deleteFriend(id) {
   const { error } = await supabase.from('friends').delete().eq('id', id)
   if (error) throw new Error(error.message)
