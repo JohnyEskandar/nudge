@@ -1,14 +1,37 @@
 /**
- * Asking someone to hang is the app's primary action, and it has to leave the app to
- * happen — the conversation lives in Messages or WhatsApp, not here.
+ * Reaching out has to leave the app to happen — the conversation lives in Messages or
+ * on a call, not here. What leaves, and in what tone, depends on the person: a mentor
+ * doesn't want to be invited out, and family would rather hear your voice.
  *
- * We have no phone numbers (a friend is just a row you typed), so we can't build an
- * `sms:` link. The share sheet solves that: the user picks the person and the app in
- * one gesture, and iOS fills the message in for them.
+ * For the two message styles we have no phone number to build an `sms:` link with, so
+ * the share sheet does the work: the user picks the person and the app in one gesture,
+ * and iOS fills the message in for them.
  */
 
-export function composeHangMessage(name) {
-  const first = name.trim().split(/\s+/)[0]
+export const NUDGE_STYLES = ['hang', 'check_in', 'call']
+
+export const STYLE_LABEL = {
+  hang: 'Ask to hang',
+  check_in: 'Send a check-in',
+  call: 'Give them a call',
+}
+
+/** What the friend's card says about how you keep in touch with them. */
+export const STYLE_DESCRIPTION = {
+  hang: 'Nudges will suggest making a plan.',
+  check_in: 'Nudges will suggest a quiet message, no plans attached.',
+  call: 'Nudges will suggest picking up the phone.',
+}
+
+export function firstName(name) {
+  return name.trim().split(/\s+/)[0]
+}
+
+export function composeMessage(name, style) {
+  const first = firstName(name)
+  if (style === 'check_in') {
+    return `Hey ${first} — you crossed my mind today. How have you been?`
+  }
   return `Hey ${first} — it's been a while. Free to hang this week?`
 }
 
@@ -19,7 +42,7 @@ export function composeHangMessage(name) {
  * Resolves 'shared' | 'copied' when the message got out, and 'cancelled' when the user
  * backed out of the sheet — the caller must not log outreach on 'cancelled'.
  */
-export async function shareHangMessage(text) {
+export async function shareMessage(text) {
   if (navigator.share) {
     try {
       await navigator.share({ text })
@@ -33,4 +56,14 @@ export async function shareHangMessage(text) {
 
   await navigator.clipboard.writeText(text)
   return 'copied'
+}
+
+/**
+ * The call action is a real link rather than a scripted navigation: an installed iOS web
+ * app will not reliably dial from `window.location.href`, but it always follows an
+ * `<a href="tel:">`. Without a number there is nothing to dial, and the caller falls back
+ * to asking for one.
+ */
+export function telHref(phone) {
+  return phone ? `tel:${phone.replace(/[^\d+]/g, '')}` : null
 }

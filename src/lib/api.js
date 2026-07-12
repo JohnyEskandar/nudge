@@ -9,6 +9,14 @@ export const DEFAULT_CADENCE = {
   abroad: 45,
 }
 
+/** Mirrors default_style_for() in the database, which fills this in if we don't. */
+export const DEFAULT_STYLE = {
+  friend: 'hang',
+  mentor: 'check_in',
+  family: 'call',
+  abroad: 'check_in',
+}
+
 function unwrap({ data, error }) {
   if (error) throw new Error(error.message)
   return data
@@ -32,12 +40,13 @@ export async function getFriend(id) {
   return unwrap(await supabase.from('friend_overview').select('*').eq('id', id).single())
 }
 
-export async function addFriend({ name, category, city, notes }) {
+export async function addFriend({ name, category, city, notes, phone, nudgeStyle }) {
   const { data: session } = await supabase.auth.getUser()
   const userId = session?.user?.id
   if (!userId) throw new Error('Not signed in.')
 
-  // reminder_settings is seeded by a DB trigger, so no second insert here.
+  // reminder_settings and nudge_style are seeded by DB triggers, so no second insert
+  // here, and nudge_style may be omitted entirely.
   return unwrap(
     await supabase
       .from('friends')
@@ -47,6 +56,8 @@ export async function addFriend({ name, category, city, notes }) {
         category,
         city: city?.trim() || null,
         notes: notes?.trim() || null,
+        phone: phone?.trim() || null,
+        nudge_style: nudgeStyle ?? DEFAULT_STYLE[category],
       })
       .select()
       .single(),
@@ -62,7 +73,11 @@ export async function addFriend({ name, category, city, notes }) {
  * `previous` is the friend_overview row being edited: it carries both the old category
  * and the current cadence_days.
  */
-export async function updateFriend(id, { name, category, city, notes }, previous) {
+export async function updateFriend(
+  id,
+  { name, category, city, notes, phone, nudgeStyle },
+  previous,
+) {
   const friend = unwrap(
     await supabase
       .from('friends')
@@ -71,6 +86,8 @@ export async function updateFriend(id, { name, category, city, notes }, previous
         category,
         city: city?.trim() || null,
         notes: notes?.trim() || null,
+        phone: phone?.trim() || null,
+        nudge_style: nudgeStyle,
       })
       .eq('id', id)
       .select()
@@ -113,20 +130,21 @@ export async function logCatchUp(friendId, { date, note }) {
 }
 
 /**
- * Recorded when you send someone a hang message, so reaching out and writing it down
- * are the same gesture — there is no separate bookkeeping step to forget.
+ * Recorded when you send someone a message or place a call, so reaching out and writing
+ * it down are the same gesture — there is no separate bookkeeping step to forget.
  *
- * It's a proxy: we know you sent the message to the share sheet, not that it landed.
- * Close enough, and the history entry can be removed like any other if it didn't.
+ * It's a proxy: we know the message went to the share sheet and the call went to the
+ * dialler, not that either landed. Close enough, and the entry can be removed from the
+ * history like any other if it didn't.
  */
-export async function logOutreach(friendId) {
+export async function logContact(friendId, kind) {
   return unwrap(
     await supabase
       .from('interactions')
       .insert({
         friend_id: friendId,
         date: new Date().toISOString().slice(0, 10),
-        kind: 'reached_out',
+        kind, // 'reached_out' | 'called'
         note: null,
       })
       .select()

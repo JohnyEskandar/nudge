@@ -213,6 +213,13 @@ button {
   filter: brightness(1.06);
 }
 
+/* The call action is an <a href="tel:">, not a button: an installed iOS web app will
+   not reliably dial from window.location, but it always follows a real link. */
+a.btn {
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
 .btn:disabled {
   opacity: 0.55;
   cursor: default;

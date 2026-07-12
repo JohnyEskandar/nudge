@@ -1,11 +1,27 @@
-import { CATEGORIES } from '../lib/api'
+import { CATEGORIES, DEFAULT_STYLE } from '../lib/api'
+import { NUDGE_STYLES, STYLE_DESCRIPTION, STYLE_LABEL } from '../lib/share'
 
 /**
- * The four fields that describe a friend. Shared by Add and Edit so the two can't
- * drift apart — a field added here shows up in both.
+ * The fields that describe a friend. Shared by Add and Edit so the two can't drift
+ * apart — a field added here shows up in both.
  */
 export default function FriendForm({ values, onChange, hint }) {
   const set = (key) => (e) => onChange({ ...values, [key]: e.target.value })
+
+  /**
+   * Category suggests a style (family → call, mentor → check-in), but only while the
+   * style is still whatever the old category suggested. Once it's been chosen
+   * deliberately, changing category leaves it alone — the same rule the cadence follows.
+   */
+  function onCategoryChange(e) {
+    const category = e.target.value
+    const styleWasSuggested = values.nudgeStyle === DEFAULT_STYLE[values.category]
+    onChange({
+      ...values,
+      category,
+      nudgeStyle: styleWasSuggested ? DEFAULT_STYLE[category] : values.nudgeStyle,
+    })
+  }
 
   return (
     <>
@@ -24,7 +40,7 @@ export default function FriendForm({ values, onChange, hint }) {
 
       <div className="field">
         <label htmlFor="category">Category</label>
-        <select id="category" value={values.category} onChange={set('category')}>
+        <select id="category" value={values.category} onChange={onCategoryChange}>
           {CATEGORIES.map((c) => (
             <option key={c} value={c}>
               {c[0].toUpperCase() + c.slice(1)}
@@ -37,6 +53,37 @@ export default function FriendForm({ values, onChange, hint }) {
           </p>
         )}
       </div>
+
+      <div className="field">
+        <label htmlFor="nudgeStyle">How you keep in touch</label>
+        <select id="nudgeStyle" value={values.nudgeStyle} onChange={set('nudgeStyle')}>
+          {NUDGE_STYLES.map((s) => (
+            <option key={s} value={s}>
+              {STYLE_LABEL[s]}
+            </option>
+          ))}
+        </select>
+        <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
+          {STYLE_DESCRIPTION[values.nudgeStyle]}
+        </p>
+      </div>
+
+      {values.nudgeStyle === 'call' && (
+        <div className="field">
+          <label htmlFor="phone">Phone (optional)</label>
+          <input
+            id="phone"
+            type="tel"
+            value={values.phone}
+            onChange={set('phone')}
+            placeholder="+1 555 010 1234"
+          />
+          <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
+            With a number, the nudge dials them in one tap. Without one, you can still log
+            the call yourself.
+          </p>
+        </div>
+      )}
 
       <div className="field">
         <label htmlFor="city">City (optional)</label>

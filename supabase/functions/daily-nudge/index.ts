@@ -29,6 +29,8 @@ const appServer = await webpush.ApplicationServer.new({
   }),
 })
 
+type Friend = { name: string; days_overdue: number; nudge_style: string }
+
 /** "Maya", "Maya and Tom", "Maya, Tom and 2 others" */
 function nameList(names: string[]): string {
   if (names.length === 1) return names[0]
@@ -38,7 +40,23 @@ function nameList(names: string[]): string {
   }`
 }
 
-function composeMessage(friends: { name: string; days_overdue: number }[]) {
+/**
+ * Not every relationship wants a hangout, so the nudge doesn't ask for one. The friend's
+ * nudge_style decides what the notification actually suggests — a plan, a quiet message,
+ * or the phone.
+ */
+function titleFor(friend: Friend): string {
+  switch (friend.nudge_style) {
+    case 'call':
+      return `Give ${friend.name} a call`
+    case 'check_in':
+      return `Check in on ${friend.name}`
+    default:
+      return `Make a plan with ${friend.name}`
+  }
+}
+
+function composeMessage(friends: Friend[]) {
   // Most overdue first, so the name we lead with is the one that matters most.
   const sorted = [...friends].sort((a, b) => b.days_overdue - a.days_overdue)
   const names = sorted.map((f) => f.name)
@@ -47,11 +65,11 @@ function composeMessage(friends: { name: string; days_overdue: number }[]) {
     const f = sorted[0]
     const body =
       f.days_overdue === 0
-        ? `Today's a good day to reach out to ${f.name}.`
+        ? `Today's a good day for it.`
         : `It's been ${f.days_overdue} day${
             f.days_overdue === 1 ? '' : 's'
           } past when you meant to catch up.`
-    return { title: `Reach out to ${f.name}`, body, url: '/' }
+    return { title: titleFor(f), body, url: '/' }
   }
 
   return {
@@ -75,7 +93,7 @@ Deno.serve(async (req) => {
   // days_overdue >= 0 means due today or already past due.
   const { data: overdue, error } = await admin
     .from('friend_overview')
-    .select('user_id, name, days_overdue')
+    .select('user_id, name, days_overdue, nudge_style')
     .gte('days_overdue', 0)
 
   if (error) {
@@ -85,10 +103,14 @@ Deno.serve(async (req) => {
     })
   }
 
-  const byUser = new Map<string, { name: string; days_overdue: number }[]>()
+  const byUser = new Map<string, Friend[]>()
   for (const row of overdue ?? []) {
     const list = byUser.get(row.user_id) ?? []
-    list.push({ name: row.name, days_overdue: row.days_overdue })
+    list.push({
+      name: row.name,
+      days_overdue: row.days_overdue,
+      nudge_style: row.nudge_style,
+    })
     byUser.set(row.user_id, list)
   }
 

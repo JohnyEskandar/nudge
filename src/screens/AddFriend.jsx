@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { addFriend, DEFAULT_CADENCE } from '../lib/api'
+import { addFriend, DEFAULT_CADENCE, DEFAULT_STYLE } from '../lib/api'
 import FriendForm from '../components/FriendForm'
 
 export default function AddFriend() {
@@ -8,6 +8,8 @@ export default function AddFriend() {
   const [values, setValues] = useState({
     name: '',
     category: 'friend',
+    nudgeStyle: DEFAULT_STYLE.friend,
+    phone: '',
     city: '',
     notes: '',
   })

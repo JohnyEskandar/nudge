@@ -7,11 +7,18 @@ import {
   getFriend,
   listInteractions,
   logCatchUp,
-  logOutreach,
+  logContact,
   setCadence,
   updateFriend,
 } from '../lib/api'
-import { composeHangMessage, shareHangMessage } from '../lib/share'
+import {
+  composeMessage,
+  firstName,
+  NUDGE_STYLES,
+  shareMessage,
+  STYLE_LABEL,
+  telHref,
+} from '../lib/share'
 import { dueLabel, formatDate, lastContactLabel, todayISO } from '../lib/format'
 import FriendForm from '../components/FriendForm'
 
@@ -19,6 +26,28 @@ import FriendForm from '../components/FriendForm'
  * Says out loud what saving will do to the reminder, so a category change never
  * moves it behind the user's back. Mirrors the rule in updateFriend.
  */
+/**
+ * Calling is a link so the phone actually dials; the other styles are buttons that open
+ * the share sheet. Both record the contact through the same handler.
+ */
+function ReachOutAction({ style, phone, primary, busy, onAct }) {
+  const className = primary ? 'btn' : 'btn btn-secondary'
+
+  if (style === 'call' && phone) {
+    return (
+      <a className={className} href={telHref(phone)} onClick={() => onAct('call')}>
+        {STYLE_LABEL.call}
+      </a>
+    )
+  }
+
+  return (
+    <button className={className} onClick={() => onAct(style)} disabled={busy}>
+      {busy && primary ? 'Opening…' : STYLE_LABEL[style]}
+    </button>
+  )
+}
+
 function cadenceHint(friend, draftCategory) {
   if (friend.category === draftCategory) return null
 
@@ -100,19 +129,35 @@ export default function FriendDetail() {
   }
 
   /**
-   * The whole point of the app in one button: the message goes out and the outreach
-   * records itself, so there is nothing left to remember to write down.
+   * The whole point of the app in one button: the contact goes out and records itself,
+   * so there is nothing left to remember to write down. What "goes out" means depends on
+   * the friend — a message for hang and check-in, the dialler for call.
    */
-  async function onAskToHang() {
+  async function onReachOut(style) {
     setAsking(true)
     setError(null)
     try {
-      const result = await shareHangMessage(composeHangMessage(friend.name))
-      if (result !== 'cancelled') {
-        await logOutreach(id)
+      if (style === 'call') {
+        if (!friend.phone) {
+          // Nothing to dial. Rather than a dead end, let them record the call they're
+          // about to make, or add a number from the edit form.
+          setError(`No number for ${firstName(friend.name)} yet — add one, or log the call.`)
+          setAsking(false)
+          return
+        }
+        // The link itself is doing the dialling; this only records it.
+        await logContact(id, 'called')
+        setSent('called')
+      } else {
+        const result = await shareMessage(composeMessage(friend.name, style))
+        if (result === 'cancelled') {
+          setAsking(false)
+          return
+        }
+        await logContact(id, 'reached_out')
         setSent(result)
-        await load() // the nudge for this friend is answered; days_overdue resets
       }
+      await load() // the nudge for this friend is answered; days_overdue resets
     } catch (err) {
       setError(err.message)
     }
@@ -123,6 +168,8 @@ export default function FriendDetail() {
     setDraft({
       name: friend.name,
       category: friend.category,
+      nudgeStyle: friend.nudge_style,
+      phone: friend.phone ?? '',
       city: friend.city ?? '',
       notes: friend.notes ?? '',
     })
@@ -179,6 +226,7 @@ export default function FriendDetail() {
   if (!friend) return <div className="loading">Loading…</div>
 
   const due = dueLabel(friend.days_overdue)
+  const first = firstName(friend.name)
   const cadenceChanged = cadenceDraft !== String(friend.cadence_days)
 
   // Editing takes over the screen rather than sitting alongside the read-only view —
@@ -254,20 +302,39 @@ export default function FriendDetail() {
 
         {sent && (
           <div className="notice">
-            {sent === 'copied'
-              ? 'Message copied — paste it to them. Logged as reached out today.'
-              : `Logged — you reached out to ${friend.name.split(' ')[0]} today.`}
+            {sent === 'copied' &&
+              'Message copied — paste it to them. Logged as reached out today.'}
+            {sent === 'shared' && `Logged — you reached out to ${first} today.`}
+            {sent === 'called' && `Logged — you called ${first} today.`}
           </div>
         )}
 
         {!logging ? (
           <>
-            <button className="btn" onClick={onAskToHang} disabled={asking}>
-              {asking ? 'Opening…' : 'Ask to hang'}
-            </button>
+            <ReachOutAction
+              style={friend.nudge_style}
+              phone={friend.phone}
+              primary
+              busy={asking}
+              onAct={onReachOut}
+            />
+
+            {/* Some weeks a hang friend just gets a text, and a call friend a message. */}
+            <div className="row" style={{ marginTop: 12 }}>
+              {NUDGE_STYLES.filter((s) => s !== friend.nudge_style).map((s) => (
+                <ReachOutAction
+                  key={s}
+                  style={s}
+                  phone={friend.phone}
+                  busy={asking}
+                  onAct={onReachOut}
+                />
+              ))}
+            </div>
+
             <div className="spacer" />
-            <button className="btn btn-secondary" onClick={() => setLogging(true)}>
-              Log a catch-up
+            <button className="btn-quiet" onClick={() => setLogging(true)}>
+              Log a catch-up that already happened
             </button>
           </>
         ) : (
@@ -354,9 +421,8 @@ export default function FriendDetail() {
                 <div>
                   <div className="timeline-date">
                     {formatDate(i.date)}
-                    {i.kind === 'reached_out' && (
-                      <span className="muted"> · reached out</span>
-                    )}
+                    {i.kind === 'reached_out' && <span className="muted"> · reached out</span>}
+                    {i.kind === 'called' && <span className="muted"> · called</span>}
                   </div>
                   {i.note && <div className="timeline-note">{i.note}</div>}
                 </div>
