@@ -9,7 +9,12 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 import * as webpush from 'jsr:@negrel/webpush@0.5.0'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
-const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+// Deliberately NOT the platform-injected SUPABASE_SERVICE_ROLE_KEY. On this project
+// the runtime injects that as an `sb_secret_...` key which the API gateway and
+// PostgREST both reject with "Invalid API key" — so both the caller check below and
+// this admin client would fail. NUDGE_SERVICE_ROLE_KEY holds the legacy service_role
+// JWT, which is the form the API actually accepts and the form pg_net sends from Vault.
+const SERVICE_ROLE_KEY = Deno.env.get('NUDGE_SERVICE_ROLE_KEY')!
 const VAPID_KEYS = Deno.env.get('VAPID_KEYS')!
 const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:nudge@example.com'
 

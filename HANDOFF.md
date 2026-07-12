@@ -1,104 +1,77 @@
-# Handoff — Nudge
+# Status — Nudge
 
-Everything is **written, builds clean, and is committed**. What's left is provisioning
-against the hosted Supabase project and deploying. You have the Supabase MCP; the
-previous session did not, which is the only reason this isn't finished.
+Provisioned and deployed against the hosted Supabase project. One manual test remains,
+and it is the important one.
 
-Supabase project ref: **`gpwbriqcbloecgqzrtsa`**
-Vercel: already logged in as `johnyeskandar` (`npx vercel --prod` works).
-Node: **use 22** (`nvm use 22`) — Vite 8's bundler needs `^20.19 || >=22.12`, and Node
-20.16 fails with a confusing "Cannot find native binding" error.
+- Supabase project ref: `gpwbriqcbloecgqzrtsa`
+- Live app: **https://nudge-blush.vercel.app**
+- Node: use 22 (`nvm use 22`).
 
-## What's done and verified
+Note the other Vercel aliases (`nudge-*-johnyeskandars-projects.vercel.app`) sit behind
+Vercel's SSO deployment protection and return a 302 to a login page. Use the
+`nudge-blush` URL on a phone; the protected ones will not work.
 
-- All four screens, the data layer, service worker, manifest, real PNG icons.
-- `npm run build` and `npm run lint` are clean.
-- `deno check supabase/functions/daily-nudge/index.ts` **passes** — the
-  `@negrel/webpush` usage compiles, so the function will deploy.
-- Local Supabase stack is running in Docker (`npx supabase stop` to kill it if you
-  don't want it; it is NOT needed for the hosted path).
+## Verified against the real project
 
-## What is NOT yet verified — this is the actual remaining work
+- Schema applied: four tables, RLS enabled on all of them, the cadence trigger, and the
+  `friend_overview` view.
+- Database linter (`get_advisors`) is **clean**. It initially flagged three warnings,
+  fixed in `20260711000003_harden_functions.sql`: the trigger function was exposed as a
+  public RPC endpoint (Postgres grants `EXECUTE` to `PUBLIC` by default) and
+  `default_cadence_for` had a mutable `search_path`.
+- Magic-link login, RLS, the trigger, and the overdue maths: `npm run seed` creates the
+  user, signs in through a **real magic link**, and reads back through RLS as that user.
+  Ordering came out Priya +110, Maya +65, Luca +5, Sam +1, Tom −30, and
+  `days_overdue == days_since_contact − cadence_days` for every row. Both assertions pass.
+- `daily-nudge` deploys, boots (so the VAPID JWK import works), returns
+  `{"ok":true,"users_overdue":1,...}` for the service role, and **401s the anon key**.
+- The nightly path end to end: calling `public.trigger_daily_nudge()` by hand made
+  `pg_net` record an HTTP 200 from the function. Vault → `pg_net` → gateway → function →
+  database all line up. Cron is scheduled and active for 16:00 UTC.
 
-Nothing has run against real Supabase data. Specifically **unverified**: the schema and
-RLS actually applying, magic-link login, the overdue sort, add-friend, friend detail,
-and a real push arriving.
+## The bug that real deployment caught
 
-## Remaining steps
+The function originally read the platform-injected `SUPABASE_SERVICE_ROLE_KEY`. On this
+project that variable holds a new-style `sb_secret_...` key which the API gateway and
+PostgREST **both reject** with "Invalid API key" — only the legacy `service_role` JWT is
+accepted. So the deployed function could never have worked: it would have rejected the
+cron's bearer token (401 nightly, silently), and its own database client would have been
+refused by PostgREST anyway.
 
-### 1. Push the schema
+It now reads `NUDGE_SERVICE_ROLE_KEY`, which holds the legacy JWT — the same value the
+cron sends from Vault, so the comparison matches. See the README for the full note.
+If you ever rotate keys, keep those two in sync or the nightly run goes quiet.
 
-Two migrations in `supabase/migrations/`:
-- `20260711000001_init.sql` — tables, RLS, the cadence-seeding trigger, and the
-  `friend_overview` view that computes `days_overdue`.
-- `20260711000002_cron.sql` — `pg_cron` + `pg_net`, scheduling `daily-nudge` daily at
-  16:00 UTC. It reads the project URL and service role key from **Vault**, so run this
-  once against the project (never commit these):
+## What is NOT verified
 
-```sql
-select vault.create_secret('https://gpwbriqcbloecgqzrtsa.supabase.co', 'project_url');
-select vault.create_secret('<service-role-key>', 'service_role_key');
-```
+**That a push notification actually arrives.** Nothing has proven this yet. The
+automated test (`npm run verify:push`) was skipped because it needs a ~150MB Chromium
+download. `sent: 0` in every run so far simply means no device has subscribed yet — it
+is not evidence of a problem, but it is not evidence of success either.
 
-### 2. VAPID keys — the one place it's easy to go wrong
+So the only remaining check is on a phone:
 
-```sh
-npm run vapid
-```
+1. Open **https://nudge-blush.vercel.app** in **Safari on iOS** (not Chrome).
+2. Share → **Add to Home Screen**. This step is mandatory: iOS does not expose the Push
+   API to a Safari tab at all, so the opt-in button only appears once the app is
+   launched from the home screen.
+3. Open it from the home screen, sign in as `johny4eskandar@gmail.com` (the seeded user —
+   four friends are already overdue), and tap **Turn on reminders**.
+4. **Force-quit the app.**
+5. Fire the send: `select public.trigger_daily_nudge();` then check
+   `select status_code, content from net._http_response order by created desc limit 1;` —
+   `sent` should now be `1`.
+6. The notification should arrive on the lock screen with the app closed.
 
-Prints **one keypair in two forms**. They must both come from that single run:
-- `VAPID_KEYS` (JWK pair) → Supabase edge function secret.
-- `VITE_VAPID_PUBLIC_KEY` (base64url raw) → frontend env var.
+If `sent` is 1 but nothing appears, the subscription reached APNs and the problem is on
+the device (notification permissions / focus mode). If `sent` is 0, the device never
+stored a subscription — check `push_subscriptions` has a row.
 
-If these don't match, `pushManager.subscribe()` still succeeds and every send then
-fails with 403 — a confusing failure worth avoiding.
+## Things worth knowing before changing anything
 
-```sh
-npx supabase secrets set VAPID_KEYS='<json>' --project-ref gpwbriqcbloecgqzrtsa
-npx supabase secrets set VAPID_SUBJECT='mailto:johny4eskandar@gmail.com' --project-ref gpwbriqcbloecgqzrtsa
-npx supabase functions deploy daily-nudge --project-ref gpwbriqcbloecgqzrtsa
-```
-
-### 3. Deploy to Vercel
-
-Set `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_VAPID_PUBLIC_KEY`, then
-`npx vercel --prod`. `vercel.json` already handles SPA rewrites and keeps `/sw.js`
-uncached (a cached service worker is a nasty debugging trap).
-
-### 4. QA — the three checks the user asked for
-
-**(a) Overdue sorting.** `scripts/seed.mjs` inserts 5 friends across all four
-categories with varied last-interaction dates, reads them back **through RLS as the
-user** (not the service role), and asserts both the ordering and that
-`days_overdue == days_since_contact - cadence_days`.
-
-```sh
-SUPABASE_URL=... ANON_KEY=... SERVICE_ROLE_KEY=... EMAIL=johny4eskandar@gmail.com npm run seed
-```
-
-Expected order (most overdue first): Priya +110, Maya +65, Luca +5, Sam +1, Tom −30.
-
-**(b) Real push.** `scripts/verify-push.mjs` drives a real Chromium: redeems a genuine
-magic link, subscribes to the **real** push service, **closes the page**, invokes
-`daily-nudge`, then reopens only to read `registration.getNotifications()`. It can only
-pass if a real push reached the service worker with no app running.
-
-Needs `npx playwright install chromium` (the user declined this twice — ask first).
-Must run **headed**; headless Chromium won't talk to the push service.
-
-**(c) Home screen install + push while closed.** Only the user can do this, on their
-phone. Have them open the Vercel URL in **Safari on iOS**, Share → Add to Home Screen,
-open it from the home screen, tap "Turn on reminders", force-quit the app, then trigger
-`daily-nudge` and confirm the notification lands on the lock screen.
-
-## Things worth knowing before you change anything
-
-- **iOS has no Push API in a Safari tab at all.** `window.PushManager` is undefined
-  until the app is on the home screen. `src/components/PushOptIn.jsx` detects this and
-  shows install instructions *instead of* a subscribe button that could not work. Don't
-  "simplify" that into a plain permission prompt.
-- **New friends are measured from `created_at`, not treated as infinitely overdue.**
-  Otherwise adding someone would fire a notification immediately.
-- The edge function rejects any caller whose bearer token isn't the service role key,
-  so `daily-nudge` can't be invoked with the anon key.
+- **iOS has no Push API in a Safari tab.** `src/components/PushOptIn.jsx` detects the
+  missing `window.PushManager` and shows install instructions *instead of* a subscribe
+  button that could not work. Don't "simplify" it into a plain permission prompt.
+- **New friends are measured from `created_at`**, not treated as infinitely overdue, so
+  adding someone doesn't fire a notification immediately.
 - Dead subscriptions are pruned on HTTP 410 (`PushMessageError.isGone()`).

@@ -63,15 +63,30 @@ npx supabase link --project-ref <ref>
 npx supabase db push
 npx supabase secrets set VAPID_KEYS='<the JSON from npm run vapid>'
 npx supabase secrets set VAPID_SUBJECT='mailto:you@example.com'
+npx supabase secrets set NUDGE_SERVICE_ROLE_KEY='<legacy service_role JWT>'
 npx supabase functions deploy daily-nudge
 ```
+
+### Why `NUDGE_SERVICE_ROLE_KEY` and not the built-in one
+
+The edge runtime injects `SUPABASE_SERVICE_ROLE_KEY`, and on this project it holds a
+new-style `sb_secret_...` key that the API gateway and PostgREST both reject with
+"Invalid API key" — only the legacy `service_role` JWT is accepted. A function relying
+on the injected variable therefore fails twice over: it rejects the cron's bearer token,
+and its own database client is refused by PostgREST. So `daily-nudge` reads the key from
+`NUDGE_SERVICE_ROLE_KEY` instead, which holds the legacy JWT — the same value the cron
+sends from Vault, so the two match. (`SUPABASE_`-prefixed names are reserved and cannot
+be set as secrets, hence the `NUDGE_` prefix.)
+
+Get that key from `npx supabase projects api-keys --project-ref <ref>` (the one named
+`service_role`, starting `eyJ...`).
 
 The cron migration reads the project URL and service role key from Supabase Vault, so
 they are never committed. Set them once:
 
 ```sql
 select vault.create_secret('https://<ref>.supabase.co', 'project_url');
-select vault.create_secret('<service-role-key>', 'service_role_key');
+select vault.create_secret('<legacy service_role JWT>', 'service_role_key');
 ```
 
 Then `npm run dev`, or deploy to Vercel (`vercel --prod`) with `VITE_SUPABASE_URL`,
@@ -94,3 +109,13 @@ npm run verify:push  # drives a real browser, closes it, then triggers the funct
 `verify:push` subscribes to the real push service, **closes the page**, invokes
 `daily-nudge`, and then reads back `registration.getNotifications()` — so it only
 passes if a real notification was delivered to a service worker with no app running.
+It needs `npx playwright install chromium` and must run headed; headless Chromium will
+not talk to the push service.
+
+To exercise the nightly path itself — Vault → `pg_net` → the function — without waiting
+for the cron, run the trigger by hand and read the response `pg_net` recorded:
+
+```sql
+select public.trigger_daily_nudge();
+select status_code, content from net._http_response order by created desc limit 1;
+```

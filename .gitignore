@@ -7,3 +7,4 @@ dist
 supabase/.temp
 vapid*.json
 *.log
+.env*
