@@ -109,8 +109,22 @@ npm run verify:push  # drives a real browser, closes it, then triggers the funct
 `verify:push` subscribes to the real push service, **closes the page**, invokes
 `daily-nudge`, and then reads back `registration.getNotifications()` — so it only
 passes if a real notification was delivered to a service worker with no app running.
-It needs `npx playwright install chromium` and must run headed; headless Chromium will
-not talk to the push service.
+
+Two things it needs, both learned the hard way:
+
+- It must run **headed**. Headless Chromium will not talk to the push service.
+- It must use a **persistent profile**. Chrome disables the Push API in incognito, and
+  a plain `browser.newContext()` is incognito-like — `pushManager.subscribe()` fails
+  with `Registration failed - permission denied` however many permissions you grant.
+  The script uses `launchPersistentContext` for this reason.
+
+## Auth redirects
+
+`Login.jsx` passes `emailRedirectTo: window.location.origin`, but Supabase silently
+ignores any redirect that is not on the project's allow-list and falls back to the
+**Site URL** — which defaults to `http://localhost:3000`. If magic links land on
+localhost from the deployed site, that is why. Both the Site URL and the allow-list must
+name the deployed origin.
 
 To exercise the nightly path itself — Vault → `pg_net` → the function — without waiting
 for the cron, run the trigger by hand and read the response `pg_net` recorded:

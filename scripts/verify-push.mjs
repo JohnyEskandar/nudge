@@ -17,6 +17,9 @@
 
 import { chromium } from 'playwright'
 import { createClient } from '@supabase/supabase-js'
+import { mkdtemp } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 const { SUPABASE_URL, ANON_KEY, SERVICE_ROLE_KEY, APP_URL, EMAIL, VAPID_PUBLIC_KEY } =
   process.env
@@ -52,13 +55,20 @@ if (linkErr) throw linkErr
 
 const origin = new URL(APP_URL).origin
 
-// Headless Chromium does not talk to the push service; we need a real browser
-// process. It still runs unattended.
-const browser = await chromium.launch({
+// Three constraints, all real:
+//   - headless Chromium does not talk to the push service, so this must be headed.
+//   - `channel: 'chrome'` drives the Chrome already installed on the machine, which
+//     avoids Playwright's ~150MB browser download entirely.
+//   - it must be a PERSISTENT profile. A normal browser.newContext() is incognito-like,
+//     and Chrome disables the Push API outright in incognito: pushManager.subscribe()
+//     fails with "Registration failed - permission denied" no matter what permissions
+//     are granted. Only a persistent profile can hold a real push registration.
+const userDataDir = await mkdtemp(join(tmpdir(), 'nudge-push-'))
+const ctx = await chromium.launchPersistentContext(userDataDir, {
   headless: false,
+  channel: process.env.BROWSER_CHANNEL ?? 'chrome',
   args: ['--no-first-run', '--disable-features=Translate'],
 })
-const ctx = await browser.newContext()
 await ctx.grantPermissions(['notifications'], { origin })
 
 const page = await ctx.newPage()
@@ -118,7 +128,7 @@ console.log(`daily-nudge -> ${res.status} ${JSON.stringify(body)}\n`)
 
 if (!res.ok || body.sent < 1) {
   console.error('FAIL: function did not report sending a push')
-  await browser.close()
+  await ctx.close()
   process.exit(1)
 }
 
@@ -138,7 +148,7 @@ const shown = await probe.evaluate(async () => {
   return []
 })
 
-await browser.close()
+await ctx.close()
 
 if (!shown.length) {
   console.error('FAIL: no notification was displayed by the service worker')

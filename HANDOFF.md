@@ -42,14 +42,39 @@ It now reads `NUDGE_SERVICE_ROLE_KEY`, which holds the legacy JWT — the same v
 cron sends from Vault, so the comparison matches. See the README for the full note.
 If you ever rotate keys, keep those two in sync or the nightly run goes quiet.
 
-## What is NOT verified
+## Push is verified
 
-**That a push notification actually arrives.** Nothing has proven this yet. The
-automated test (`npm run verify:push`) was skipped because it needs a ~150MB Chromium
-download. `sent: 0` in every run so far simply means no device has subscribed yet — it
-is not evidence of a problem, but it is not evidence of success either.
+`npm run verify:push` **passes against the live site**. It redeemed a real magic link,
+subscribed to a real FCM endpoint, **closed the page**, invoked `daily-nudge`
+(`sent: 1`), and then read back the notification the service worker had displayed with
+no app running:
 
-So the only remaining check is on a phone:
+```
+4 people to catch up with
+Priya Raman, Maya Okonkwo and 2 others are overdue for a catch-up.
+```
+
+The test subscription has been deleted, so `push_subscriptions` is empty again and your
+phone will be the only subscriber.
+
+## Two bugs the real run caught
+
+1. **Magic links went to `localhost:3000`.** `Login.jsx` passes
+   `emailRedirectTo: window.location.origin`, but Supabase silently ignores a redirect
+   that is not on the allow-list and falls back to the Site URL — which was still the
+   default `http://localhost:3000`. Login was therefore broken on the deployed site.
+   Fixed: Site URL is now `https://nudge-blush.vercel.app` and the allow-list covers it
+   plus `localhost:5173` for dev. (An off-list redirect still falls back rather than
+   being honoured, so this is not an open redirect.)
+2. **`verify:push` could never have passed as written.** It used
+   `browser.newContext()`, which is incognito-like, and Chrome disables the Push API in
+   incognito — `subscribe()` fails with "Registration failed - permission denied"
+   regardless of granted permissions. It now uses `launchPersistentContext`.
+
+## Still worth doing on the phone
+
+Everything above was proven on desktop Chrome. iOS/APNs is a different push service and
+the home-screen requirement is iOS-specific, so it is worth confirming there:
 
 1. Open **https://nudge-blush.vercel.app** in **Safari on iOS** (not Chrome).
 2. Share → **Add to Home Screen**. This step is mandatory: iOS does not expose the Push
