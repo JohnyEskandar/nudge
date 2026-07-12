@@ -7,9 +7,11 @@ import {
   getFriend,
   listInteractions,
   logCatchUp,
+  logOutreach,
   setCadence,
   updateFriend,
 } from '../lib/api'
+import { composeHangMessage, shareHangMessage } from '../lib/share'
 import { dueLabel, formatDate, lastContactLabel, todayISO } from '../lib/format'
 import FriendForm from '../components/FriendForm'
 
@@ -45,6 +47,9 @@ export default function FriendDetail() {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(null)
   const [savingEdit, setSavingEdit] = useState(false)
+
+  const [asking, setAsking] = useState(false)
+  const [sent, setSent] = useState(null) // 'shared' | 'copied', after a hang message goes out
 
   const load = useCallback(async () => {
     try {
@@ -92,6 +97,26 @@ export default function FriendDetail() {
       setError(err.message)
     }
     setSavingCadence(false)
+  }
+
+  /**
+   * The whole point of the app in one button: the message goes out and the outreach
+   * records itself, so there is nothing left to remember to write down.
+   */
+  async function onAskToHang() {
+    setAsking(true)
+    setError(null)
+    try {
+      const result = await shareHangMessage(composeHangMessage(friend.name))
+      if (result !== 'cancelled') {
+        await logOutreach(id)
+        setSent(result)
+        await load() // the nudge for this friend is answered; days_overdue resets
+      }
+    } catch (err) {
+      setError(err.message)
+    }
+    setAsking(false)
   }
 
   function startEditing() {
@@ -227,10 +252,24 @@ export default function FriendDetail() {
 
         <div className="spacer" />
 
+        {sent && (
+          <div className="notice">
+            {sent === 'copied'
+              ? 'Message copied — paste it to them. Logged as reached out today.'
+              : `Logged — you reached out to ${friend.name.split(' ')[0]} today.`}
+          </div>
+        )}
+
         {!logging ? (
-          <button className="btn" onClick={() => setLogging(true)}>
-            Log a catch-up
-          </button>
+          <>
+            <button className="btn" onClick={onAskToHang} disabled={asking}>
+              {asking ? 'Opening…' : 'Ask to hang'}
+            </button>
+            <div className="spacer" />
+            <button className="btn btn-secondary" onClick={() => setLogging(true)}>
+              Log a catch-up
+            </button>
+          </>
         ) : (
           <form onSubmit={onLog}>
             <div className="field">
@@ -313,7 +352,12 @@ export default function FriendDetail() {
             {interactions.map((i) => (
               <li key={i.id}>
                 <div>
-                  <div className="timeline-date">{formatDate(i.date)}</div>
+                  <div className="timeline-date">
+                    {formatDate(i.date)}
+                    {i.kind === 'reached_out' && (
+                      <span className="muted"> · reached out</span>
+                    )}
+                  </div>
                   {i.note && <div className="timeline-note">{i.note}</div>}
                 </div>
                 <button

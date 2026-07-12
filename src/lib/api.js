@@ -106,7 +106,29 @@ export async function logCatchUp(friendId, { date, note }) {
   return unwrap(
     await supabase
       .from('interactions')
-      .insert({ friend_id: friendId, date, note: note?.trim() || null })
+      .insert({ friend_id: friendId, date, note: note?.trim() || null, kind: 'caught_up' })
+      .select()
+      .single(),
+  )
+}
+
+/**
+ * Recorded when you send someone a hang message, so reaching out and writing it down
+ * are the same gesture — there is no separate bookkeeping step to forget.
+ *
+ * It's a proxy: we know you sent the message to the share sheet, not that it landed.
+ * Close enough, and the history entry can be removed like any other if it didn't.
+ */
+export async function logOutreach(friendId) {
+  return unwrap(
+    await supabase
+      .from('interactions')
+      .insert({
+        friend_id: friendId,
+        date: new Date().toISOString().slice(0, 10),
+        kind: 'reached_out',
+        note: null,
+      })
       .select()
       .single(),
   )
