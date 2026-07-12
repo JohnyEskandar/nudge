@@ -26,6 +26,19 @@ export default function Login() {
   const [status, setStatus] = useState('idle') // idle | sending | sent | verifying
   const [error, setError] = useState(null)
   const [link, setLink] = useState('')
+  const [showEmail, setShowEmail] = useState(false)
+
+  // The preferred path. Nothing is emailed, so there is no deliverability problem and
+  // nothing for the user to copy between apps — the redirect returns to this same
+  // context, which is what a magic link cannot do on an installed iOS app.
+  async function onGoogle() {
+    setError(null)
+    const { error: err } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin },
+    })
+    if (err) setError(err.message)
+  }
 
   async function onSubmit(e) {
     e.preventDefault()
@@ -144,41 +157,59 @@ export default function Login() {
 
       {error && <div className="error">{error}</div>}
 
-      <form onSubmit={onSubmit}>
-        <div className="field">
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            autoComplete="email"
-            required
-          />
-        </div>
-
-        <button className="btn" type="submit" disabled={status === 'sending' || !email.trim()}>
-          {status === 'sending' ? 'Sending…' : 'Send me a sign-in link'}
-        </button>
-      </form>
+      <button className="btn" onClick={onGoogle}>
+        Continue with Google
+      </button>
 
       <p className="muted center" style={{ marginTop: 20 }}>
-        No password. We&rsquo;ll email you a link.
+        No password, nothing to remember.
       </p>
 
-      {/* Reachable without sending an email: the built-in mailer is rate limited, and a
-          link can also be issued out of band. Without this the paste box was only
-          reachable via a successful send, which is exactly what fails when rate limited. */}
-      <button
-        className="btn btn-secondary"
-        onClick={() => {
-          setError(null)
-          setStatus('paste')
-        }}
-      >
-        I already have a sign-in link
-      </button>
+      {!showEmail && (
+        <button className="btn btn-secondary" onClick={() => setShowEmail(true)}>
+          Use email instead
+        </button>
+      )}
+
+      {showEmail && (
+        <>
+          <form onSubmit={onSubmit} style={{ marginTop: 8 }}>
+            <div className="field">
+              <label htmlFor="email">Email</label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                autoComplete="email"
+                required
+              />
+            </div>
+
+            <button
+              className="btn btn-secondary"
+              type="submit"
+              disabled={status === 'sending' || !email.trim()}
+            >
+              {status === 'sending' ? 'Sending…' : 'Send me a sign-in link'}
+            </button>
+          </form>
+
+          {/* Reachable without sending an email: the built-in mailer is rate limited, and
+              a link can also be issued out of band. Without this the paste box was only
+              reachable via a successful send — exactly what fails when rate limited. */}
+          <button
+            className="btn btn-secondary"
+            onClick={() => {
+              setError(null)
+              setStatus('paste')
+            }}
+          >
+            I already have a sign-in link
+          </button>
+        </>
+      )}
     </div>
   )
 }

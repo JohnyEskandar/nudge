@@ -118,13 +118,32 @@ Two things it needs, both learned the hard way:
   with `Registration failed - permission denied` however many permissions you grant.
   The script uses `launchPersistentContext` for this reason.
 
-## Auth redirects
+## Auth
 
-`Login.jsx` passes `emailRedirectTo: window.location.origin`, but Supabase silently
-ignores any redirect that is not on the project's allow-list and falls back to the
-**Site URL** — which defaults to `http://localhost:3000`. If magic links land on
-localhost from the deployed site, that is why. Both the Site URL and the allow-list must
-name the deployed origin.
+**Google sign-in is the main path**, and on an installed iOS app it is the only one that
+works cleanly. A magic link cannot sign in a home-screen web app: Mail opens the link in
+Safari, which has a *separate storage context* from the installed app, so the session —
+and with PKCE, the `code_verifier` — lands where the app cannot see it. OAuth redirects
+back into the same context, so it does not have this problem. (Verified on a real
+iPhone: tapping "Continue with Google" from the home-screen app signs in and stays in
+the app.)
+
+Email sign-in is kept as a fallback, with a "paste your sign-in link" box for the iOS
+case. It is a workaround, not the front door.
+
+Setting Google up: create an OAuth client (Web) in Google Cloud — free, no billing
+account needed — with the redirect URI `https://<ref>.supabase.co/auth/v1/callback` and
+`supabase.co` as an authorized domain, then set `external_google_*` in the project's
+auth config. Supabase links a Google identity to an existing user when the verified
+email matches, so signing in with Google after having used a magic link lands on the
+same account rather than creating a second one.
+
+### Redirect allow-list
+
+Supabase silently ignores any redirect that is not on the project's allow-list and falls
+back to the **Site URL**, which defaults to `http://localhost:3000`. If sign-in links
+land on localhost from the deployed site, that is why. Both the Site URL and the
+allow-list must name the deployed origin.
 
 To exercise the nightly path itself — Vault → `pg_net` → the function — without waiting
 for the cron, run the trigger by hand and read the response `pg_net` recorded:

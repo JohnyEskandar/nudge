@@ -80,32 +80,31 @@ was **force-quit**, and `select public.trigger_daily_nudge();` returned
 notification arrived on the lock screen. Vault → `pg_net` → edge function → APNs →
 service worker, with no app running, on the real device.
 
-## Open: sign-in is not ready for other people
+## Sign-in: Google, and it works on iOS
 
-Magic-link sign-in **cannot work in an installed iOS app** and this is not fixable by
-tweaking it. Mail opens the link in Safari, which is a separate storage context from the
-home-screen app, so the PKCE verifier (and the resulting session) land in the wrong
-place. The login screen therefore has a "paste your sign-in link" path, which redeems
-the token with `verifyOtp` *inside* the app. That works, but it is a workaround and no
-friend should be asked to do it.
+**Google sign-in is the main path and is verified on a real iPhone** — tapping "Continue
+with Google" from the home-screen app signs in and returns *into the app*, not Safari.
+The feared iOS standalone-PWA redirect problem did not materialise. It also works on
+desktop.
 
-Compounding it, the free tier's built-in mailer allows only a couple of emails an hour
-and forbids email-template editing, so the clean fix (a 6-digit code typed into the app)
-needs a real SMTP provider first.
+This matters because **magic links cannot sign in an installed iOS app at all**: Mail
+opens the link in Safari, which has a separate storage context from the home-screen app,
+so the session (and with PKCE, the `code_verifier`) lands where the app cannot see it.
+That is structural, not a bug to patch. Email sign-in is kept only as a fallback, with a
+"paste your sign-in link" box for the iOS case.
 
-Options discussed, none implemented yet:
+Supabase links a Google identity to an existing user when the verified email matches, so
+the original magic-link account and the Google sign-in are **one user** (confirmed:
+`providers = {email, google}`), with the friends and push subscription intact.
 
-- **6-digit code by email** (needs Brevo/SendGrid single-sender SMTP; no domain
-  required). Passwordless and immune to the iOS trap, since nothing leaves the app.
-- **Google OAuth.** One tap, but OAuth redirects inside an iOS standalone PWA are
-  historically flaky — same class of bug as the one above; would need testing.
-- **Email + password, confirmations off.** Nothing is ever emailed. Simplest and
-  certain, but abandons the passwordless design.
-- **Anonymous accounts.** Zero friction, but the account is bound to one browser: no
-  second device, and clearing site data destroys the friend list.
+Email was considered and rejected as the primary path: the free tier's built-in mailer
+allows only a couple of messages an hour and forbids template editing, so a 6-digit code
+would have needed custom SMTP — and sending from a `@gmail.com` address via a third-party
+relay fails DMARC alignment, which would land sign-in codes in spam. Google avoids the
+whole surface.
 
-Note `mailer_autoconfirm` is still `false` and signups still send email, so the
-password option is not half-applied — the project config is untouched on this front.
+Google Cloud setup needs **no billing account**; OAuth for `email`/`profile` scopes is
+free.
 
 <details>
 <summary>Original phone-test steps (kept for reference)</summary>
