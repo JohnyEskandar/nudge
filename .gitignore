@@ -8,3 +8,5 @@ supabase/.temp
 vapid*.json
 *.log
 .env*
+.agents
+.claude/skills
