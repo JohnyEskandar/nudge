@@ -71,10 +71,44 @@ phone will be the only subscriber.
    incognito — `subscribe()` fails with "Registration failed - permission denied"
    regardless of granted permissions. It now uses `launchPersistentContext`.
 
-## Still worth doing on the phone
+## Verified on a real iPhone
 
-Everything above was proven on desktop Chrome. iOS/APNs is a different push service and
-the home-screen requirement is iOS-specific, so it is worth confirming there:
+Done, on 2026-07-11. The app was installed to the home screen, notifications turned on
+(a genuine `web.push.apple.com` subscription appeared in `push_subscriptions`), the app
+was **force-quit**, and `select public.trigger_daily_nudge();` returned
+`{"ok":true,"users_overdue":1,"users_notified":1,"sent":1,"failures":[]}`. The
+notification arrived on the lock screen. Vault → `pg_net` → edge function → APNs →
+service worker, with no app running, on the real device.
+
+## Open: sign-in is not ready for other people
+
+Magic-link sign-in **cannot work in an installed iOS app** and this is not fixable by
+tweaking it. Mail opens the link in Safari, which is a separate storage context from the
+home-screen app, so the PKCE verifier (and the resulting session) land in the wrong
+place. The login screen therefore has a "paste your sign-in link" path, which redeems
+the token with `verifyOtp` *inside* the app. That works, but it is a workaround and no
+friend should be asked to do it.
+
+Compounding it, the free tier's built-in mailer allows only a couple of emails an hour
+and forbids email-template editing, so the clean fix (a 6-digit code typed into the app)
+needs a real SMTP provider first.
+
+Options discussed, none implemented yet:
+
+- **6-digit code by email** (needs Brevo/SendGrid single-sender SMTP; no domain
+  required). Passwordless and immune to the iOS trap, since nothing leaves the app.
+- **Google OAuth.** One tap, but OAuth redirects inside an iOS standalone PWA are
+  historically flaky — same class of bug as the one above; would need testing.
+- **Email + password, confirmations off.** Nothing is ever emailed. Simplest and
+  certain, but abandons the passwordless design.
+- **Anonymous accounts.** Zero friction, but the account is bound to one browser: no
+  second device, and clearing site data destroys the friend list.
+
+Note `mailer_autoconfirm` is still `false` and signups still send email, so the
+password option is not half-applied — the project config is untouched on this front.
+
+<details>
+<summary>Original phone-test steps (kept for reference)</summary>
 
 1. Open **https://nudge-blush.vercel.app** in **Safari on iOS** (not Chrome).
 2. Share → **Add to Home Screen**. This step is mandatory: iOS does not expose the Push
@@ -91,6 +125,8 @@ the home-screen requirement is iOS-specific, so it is worth confirming there:
 If `sent` is 1 but nothing appears, the subscription reached APNs and the problem is on
 the device (notification permissions / focus mode). If `sent` is 0, the device never
 stored a subscription — check `push_subscriptions` has a row.
+
+</details>
 
 ## Things worth knowing before changing anything
 
