@@ -27,6 +27,17 @@ export function firstName(name) {
   return name.trim().split(/\s+/)[0]
 }
 
+/**
+ * The title the nightly push will actually use. Mirrors titleFor() in
+ * supabase/functions/daily-nudge/index.ts — if you change one, change the other. Shown
+ * during onboarding so the promise the app makes is the promise it keeps.
+ */
+export function nudgeTitle(name, style) {
+  if (style === 'call') return `Give ${name} a call`
+  if (style === 'check_in') return `Check in on ${name}`
+  return `Make a plan with ${name}`
+}
+
 export function composeMessage(name, style) {
   const first = firstName(name)
   if (style === 'check_in') {

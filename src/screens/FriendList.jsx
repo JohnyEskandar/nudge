@@ -8,6 +8,7 @@ import { sentMessage, useReachOut } from '../lib/useReachOut'
 import ReachOutAction from '../components/ReachOutAction'
 import SnoozeActions from '../components/SnoozeActions'
 import PushOptIn from '../components/PushOptIn'
+import { ONBOARDED_KEY } from './Onboarding'
 
 /**
  * A neglected list would otherwise open as a wall of overdue cards, which is the guilt
@@ -45,6 +46,14 @@ export default function FriendList() {
   useEffect(() => {
     load()
   }, [load])
+
+  // An empty list teaches nobody anything. A signed-in user with nobody on it hasn't
+  // started yet, so send them through the first run — unless they chose to skip it.
+  useEffect(() => {
+    if (friends?.length === 0 && localStorage.getItem(ONBOARDED_KEY) !== '1') {
+      navigate('/welcome', { replace: true })
+    }
+  }, [friends, navigate])
 
   const { reachOut, busyId, sent, error, setError } = useReachOut(load)
 
