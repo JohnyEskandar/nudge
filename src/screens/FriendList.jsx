@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { listFriends, snoozeFriend } from '../lib/api'
-import { supabase } from '../lib/supabase'
 import { dueLabel, lastContactLabel } from '../lib/format'
 import { firstName } from '../lib/share'
 import { sentMessage, useReachOut } from '../lib/useReachOut'
@@ -85,8 +84,8 @@ export default function FriendList() {
                 : 'Nobody’s overdue. Enjoy the quiet.'}
           </p>
         </div>
-        <button className="btn-quiet" onClick={() => supabase.auth.signOut()}>
-          Sign out
+        <button className="btn-quiet" onClick={() => navigate('/settings')}>
+          Settings
         </button>
       </div>
 

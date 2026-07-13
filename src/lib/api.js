@@ -103,6 +103,22 @@ export async function updateFriend(
   return friend
 }
 
+/**
+ * Erases the account for good. Only the service role can delete an auth user, so the work
+ * happens in the delete-account edge function; it identifies the caller from this access
+ * token alone, never from anything we send it. Every table cascades off auth.users, so
+ * one delete takes the lot.
+ */
+export async function deleteAccount() {
+  const { data } = await supabase.auth.getSession()
+  if (!data.session) throw new Error('Not signed in.')
+
+  // invoke() sends the signed-in user's access token, which is the only thing the
+  // function trusts to decide whose account this is.
+  const { error } = await supabase.functions.invoke('delete-account', { method: 'POST' })
+  if (error) throw new Error(error.message)
+}
+
 export async function deleteFriend(id) {
   const { error } = await supabase.from('friends').delete().eq('id', id)
   if (error) throw new Error(error.message)
