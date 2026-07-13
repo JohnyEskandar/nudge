@@ -6,7 +6,15 @@ import { dueLabel, lastContactLabel } from '../lib/format'
 import { firstName } from '../lib/share'
 import { sentMessage, useReachOut } from '../lib/useReachOut'
 import ReachOutAction from '../components/ReachOutAction'
+import SnoozeActions from '../components/SnoozeActions'
 import PushOptIn from '../components/PushOptIn'
+
+/**
+ * A neglected list would otherwise open as a wall of overdue cards, which is the guilt
+ * the app is supposed to spare you. Today shows the few that matter most and says how
+ * many are waiting; the rest are on My people whenever you want them.
+ */
+const TODAY_LIMIT = 3
 
 /** listFriends sorts most-overdue-first, so the nearest of the not-yet-due leads. */
 function nextUp(upcoming) {
@@ -50,7 +58,9 @@ export default function FriendList() {
     }
   }
 
-  const due = friends?.filter((f) => f.days_overdue >= 0) ?? []
+  const allDue = friends?.filter((f) => f.days_overdue >= 0) ?? []
+  const due = allDue.slice(0, TODAY_LIMIT)
+  const alsoWaiting = allDue.length - due.length
   const upcoming = friends?.filter((f) => f.days_overdue < 0) ?? []
 
   return (
@@ -61,8 +71,8 @@ export default function FriendList() {
           <p className="muted" style={{ margin: 0 }}>
             {friends === null
               ? ' '
-              : due.length > 0
-                ? `${due.length} ${due.length === 1 ? 'person' : 'people'} to reach out to`
+              : allDue.length > 0
+                ? `${allDue.length} ${allDue.length === 1 ? 'person' : 'people'} to reach out to`
                 : 'Nobody’s overdue. Enjoy the quiet.'}
           </p>
         </div>
@@ -114,19 +124,11 @@ export default function FriendList() {
                 onAct={(style) => reachOut(f, style)}
               />
 
-              {/* The third door: neither reaching out nor pretending you did. */}
-              <div className="row" style={{ marginTop: 12 }}>
-                <button className="btn-quiet" onClick={() => onSnooze(f, 3)}>
-                  Not now
-                </button>
-                <button
-                  className="btn-quiet"
-                  onClick={() => onSnooze(f, f.cadence_days)}
-                  title={`Quiet for another ${f.cadence_days} days`}
-                >
-                  We’re good
-                </button>
-              </div>
+              <SnoozeActions
+                cadenceDays={f.cadence_days}
+                busy={busyId === f.id}
+                onSnooze={(days) => onSnooze(f, days)}
+              />
             </>
           )}
         </div>
@@ -135,9 +137,11 @@ export default function FriendList() {
       {/* Everyone else stays out of the way — one tap, not one scroll. */}
       {friends?.length > 0 && (
         <Link className="see-all" to="/people">
-          {upcoming.length > 0 && due.length > 0
-            ? `All ${friends.length} people — next up ${nextUp(upcoming)}`
-            : `All ${friends.length} people`}
+          {alsoWaiting > 0
+            ? `${alsoWaiting} more ${alsoWaiting === 1 ? 'person is' : 'people are'} waiting`
+            : upcoming.length > 0 && due.length > 0
+              ? `All ${friends.length} people — next up ${nextUp(upcoming)}`
+              : `All ${friends.length} people`}
           <span aria-hidden="true"> →</span>
         </Link>
       )}

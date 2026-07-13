@@ -8,12 +8,14 @@ import {
   listInteractions,
   logCatchUp,
   setCadence,
+  snoozeFriend,
   updateFriend,
 } from '../lib/api'
 import { NUDGE_STYLES } from '../lib/share'
 import { dueLabel, formatDate, lastContactLabel, todayISO } from '../lib/format'
 import { sentMessage, useReachOut } from '../lib/useReachOut'
 import ReachOutAction from '../components/ReachOutAction'
+import SnoozeActions from '../components/SnoozeActions'
 import FriendForm from '../components/FriendForm'
 
 /**
@@ -98,6 +100,17 @@ export default function FriendDetail() {
       setError(err.message)
     }
     setSavingCadence(false)
+  }
+
+  async function onSnooze(days) {
+    setError(null)
+    setReachError(null)
+    try {
+      await snoozeFriend(id, days)
+      await load()
+    } catch (err) {
+      setError(err.message)
+    }
   }
 
   function startEditing() {
@@ -262,6 +275,15 @@ export default function FriendDetail() {
                 />
               ))}
             </div>
+
+            {/* The third door, only when there is a nudge to answer. */}
+            {due.due && (
+              <SnoozeActions
+                cadenceDays={friend.cadence_days}
+                busy={busyId === friend.id}
+                onSnooze={onSnooze}
+              />
+            )}
 
             <div className="spacer" />
             <button className="btn-quiet" onClick={() => setLogging(true)}>
