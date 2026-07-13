@@ -68,22 +68,23 @@ export default function FriendForm({ values, onChange, hint }) {
         </p>
       </div>
 
-      {values.nudgeStyle === 'call' && (
-        <div className="field">
-          <label htmlFor="phone">Phone (optional)</label>
-          <input
-            id="phone"
-            type="tel"
-            value={values.phone}
-            onChange={set('phone')}
-            placeholder="+1 555 010 1234"
-          />
-          <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
-            With a number, the nudge dials them in one tap. Without one, you can still log
-            the call yourself.
-          </p>
-        </div>
-      )}
+      {/* Always offered, not just for the call style: any friend can be phoned on a
+          given week, and hiding the field left the "Give them a call" button telling you
+          to add a number with nowhere to add it. */}
+      <div className="field">
+        <label htmlFor="phone">Phone (optional)</label>
+        <input
+          id="phone"
+          type="tel"
+          value={values.phone}
+          onChange={set('phone')}
+          placeholder="+1 555 010 1234"
+        />
+        <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
+          With a number, calling them is one tap and logs itself. Without one, you can
+          still log the call yourself.
+        </p>
+      </div>
 
       <div className="field">
         <label htmlFor="city">City (optional)</label>
