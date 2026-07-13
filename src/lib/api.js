@@ -157,6 +157,27 @@ export async function deleteInteraction(id) {
   if (error) throw new Error(error.message)
 }
 
+/**
+ * The third door out of a nudge. "Reach out" and "log a catch-up" were the only two, so
+ * saying "not now" meant logging contact that never happened — a lie the list then
+ * believes. A snooze pushes the due date out and leaves the history honest.
+ *
+ * days: 3 or 7 for "not now"; a friend's full cadence for "we're good".
+ */
+export async function snoozeFriend(friendId, days) {
+  const until = new Date()
+  until.setDate(until.getDate() + days)
+
+  return unwrap(
+    await supabase
+      .from('reminder_settings')
+      .update({ snoozed_until: until.toISOString().slice(0, 10) })
+      .eq('friend_id', friendId)
+      .select()
+      .single(),
+  )
+}
+
 export async function setCadence(friendId, cadenceDays) {
   return unwrap(
     await supabase
