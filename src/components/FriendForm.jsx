@@ -87,6 +87,20 @@ export default function FriendForm({ values, onChange, hint }) {
       </div>
 
       <div className="field">
+        <label htmlFor="birthday">Birthday (optional)</label>
+        <input
+          id="birthday"
+          type="date"
+          value={values.birthday}
+          onChange={set('birthday')}
+        />
+        <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
+          A birthday nudge arrives a few days ahead — the best excuse there is to reach
+          out.
+        </p>
+      </div>
+
+      <div className="field">
         <label htmlFor="city">City (optional)</label>
         <input
           id="city"

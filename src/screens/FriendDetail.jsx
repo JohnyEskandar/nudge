@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
+  birthdayISO,
   DEFAULT_CADENCE,
   deleteFriend,
   deleteInteraction,
@@ -12,7 +13,15 @@ import {
   updateFriend,
 } from '../lib/api'
 import { NUDGE_STYLES } from '../lib/share'
-import { dueLabel, formatDate, lastContactLabel, todayISO } from '../lib/format'
+import {
+  birthdayLabel,
+  dueLabel,
+  excerpt,
+  formatDate,
+  formatMonthDay,
+  lastContactLabel,
+  todayISO,
+} from '../lib/format'
 import { sentMessage, useReachOut } from '../lib/useReachOut'
 import ReachOutAction from '../components/ReachOutAction'
 import SnoozeActions from '../components/SnoozeActions'
@@ -119,6 +128,7 @@ export default function FriendDetail() {
       category: friend.category,
       nudgeStyle: friend.nudge_style,
       phone: friend.phone ?? '',
+      birthday: birthdayISO(friend),
       city: friend.city ?? '',
       notes: friend.notes ?? '',
     })
@@ -227,6 +237,11 @@ export default function FriendDetail() {
           <div className="row" style={{ gap: 8 }}>
             <span className="tag">{friend.category}</span>
             {friend.city && <span className="tag">{friend.city}</span>}
+            {friend.birthday_month && (
+              <span className="tag">
+                🎂 {formatMonthDay(friend.birthday_month, friend.birthday_day)}
+              </span>
+            )}
           </div>
         </div>
         <button className="btn-quiet" onClick={startEditing}>
@@ -246,6 +261,14 @@ export default function FriendDetail() {
             {due.text}
           </span>
         </div>
+
+        {friend.birthday_in_days != null && friend.birthday_in_days <= 14 && (
+          <div className="reason">🎂 {birthdayLabel(friend.birthday_in_days)}</div>
+        )}
+
+        {friend.last_note && (
+          <p className="starter">Last time: “{excerpt(friend.last_note)}”</p>
+        )}
 
         <div className="spacer" />
 

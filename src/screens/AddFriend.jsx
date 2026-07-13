@@ -10,6 +10,7 @@ export default function AddFriend() {
     category: 'friend',
     nudgeStyle: DEFAULT_STYLE.friend,
     phone: '',
+    birthday: '',
     city: '',
     notes: '',
   })

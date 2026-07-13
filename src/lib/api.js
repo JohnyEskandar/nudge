@@ -40,14 +40,14 @@ export async function getFriend(id) {
   return unwrap(await supabase.from('friend_overview').select('*').eq('id', id).single())
 }
 
-export async function addFriend({ name, category, city, notes, phone, nudgeStyle }) {
+export async function addFriend({ name, category, city, notes, phone, nudgeStyle, birthday }) {
   const { data: session } = await supabase.auth.getUser()
   const userId = session?.user?.id
   if (!userId) throw new Error('Not signed in.')
 
   // reminder_settings and nudge_style are seeded by DB triggers, so no second insert
   // here, and nudge_style may be omitted entirely.
-  return unwrap(
+  const friend = unwrap(
     await supabase
       .from('friends')
       .insert({
@@ -62,6 +62,41 @@ export async function addFriend({ name, category, city, notes, phone, nudgeStyle
       .select()
       .single(),
   )
+
+  if (birthday) await saveBirthday(friend.id, birthday)
+  return friend
+}
+
+/**
+ * One birthday per person, stored as month/day (the year is kept but only informational —
+ * reminders recur). Replace rather than upsert: the uniqueness lives in a partial index
+ * (`where kind = 'birthday'`), which PostgREST's on_conflict can't target.
+ */
+export async function saveBirthday(friendId, isoDate) {
+  const { error } = await supabase
+    .from('special_dates')
+    .delete()
+    .eq('friend_id', friendId)
+    .eq('kind', 'birthday')
+  if (error) throw new Error(error.message)
+
+  if (!isoDate) return null
+
+  const [year, month, day] = isoDate.split('-').map(Number)
+  return unwrap(
+    await supabase
+      .from('special_dates')
+      .insert({ friend_id: friendId, kind: 'birthday', month, day, year })
+      .select()
+      .single(),
+  )
+}
+
+/** The stored birthday as the ISO string a date input wants, or '' when unknown. */
+export function birthdayISO(friend) {
+  if (!friend.birthday_month || !friend.birthday_year) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${friend.birthday_year}-${pad(friend.birthday_month)}-${pad(friend.birthday_day)}`
 }
 
 /**
@@ -75,7 +110,7 @@ export async function addFriend({ name, category, city, notes, phone, nudgeStyle
  */
 export async function updateFriend(
   id,
-  { name, category, city, notes, phone, nudgeStyle },
+  { name, category, city, notes, phone, nudgeStyle, birthday },
   previous,
 ) {
   const friend = unwrap(
@@ -93,6 +128,10 @@ export async function updateFriend(
       .select()
       .single(),
   )
+
+  if ((birthday ?? '') !== birthdayISO(previous)) {
+    await saveBirthday(id, birthday || null)
+  }
 
   const categoryChanged = previous.category !== category
   const cadenceIsStillDefault = previous.cadence_days === DEFAULT_CADENCE[previous.category]

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { listFriends, snoozeFriend } from '../lib/api'
-import { dueLabel, lastContactLabel } from '../lib/format'
+import { birthdayLabel, dueLabel, excerpt, lastContactLabel } from '../lib/format'
 import { firstName } from '../lib/share'
 import { sentMessage, useReachOut } from '../lib/useReachOut'
 import ReachOutAction from '../components/ReachOutAction'
@@ -15,6 +15,9 @@ import { ONBOARDED_KEY } from './Onboarding'
  * many are waiting; the rest are on My people whenever you want them.
  */
 const TODAY_LIMIT = 3
+
+/** A close birthday is a reason to reach out even when nothing is overdue. */
+const birthdaySoon = (f) => f.birthday_in_days != null && f.birthday_in_days <= 3
 
 /** listFriends sorts most-overdue-first, so the nearest of the not-yet-due leads. */
 function nextUp(upcoming) {
@@ -66,10 +69,18 @@ export default function FriendList() {
     }
   }
 
-  const allDue = friends?.filter((f) => f.days_overdue >= 0) ?? []
+  // Overdue is a fact; a birthday is a reason. Either earns a place on Today, and
+  // birthdays lead — they expire, overdue-ness keeps.
+  const allDue = (friends?.filter((f) => f.days_overdue >= 0 || birthdaySoon(f)) ?? []).sort(
+    (a, b) => {
+      if (birthdaySoon(a) !== birthdaySoon(b)) return birthdaySoon(a) ? -1 : 1
+      if (birthdaySoon(a)) return a.birthday_in_days - b.birthday_in_days
+      return b.days_overdue - a.days_overdue
+    },
+  )
   const due = allDue.slice(0, TODAY_LIMIT)
   const alsoWaiting = allDue.length - due.length
-  const upcoming = friends?.filter((f) => f.days_overdue < 0) ?? []
+  const upcoming = friends?.filter((f) => !allDue.includes(f)) ?? []
 
   return (
     <>
@@ -108,15 +119,21 @@ export default function FriendList() {
             <Link className="friend-name" to={`/friend/${f.id}`}>
               {f.name}
             </Link>
-            <span className="status due">
-              <span className="dot" />
-              {dueLabel(f.days_overdue).text}
-            </span>
+            {birthdaySoon(f) ? (
+              <span className="status due">🎂 {birthdayLabel(f.birthday_in_days)}</span>
+            ) : (
+              <span className="status due">
+                <span className="dot" />
+                {dueLabel(f.days_overdue).text}
+              </span>
+            )}
           </div>
           <div className="friend-meta">
             {lastContactLabel(f.days_since_contact, Boolean(f.last_interaction_date))}
             {f.city ? ` · ${f.city}` : ''}
           </div>
+
+          {f.last_note && <p className="starter">Last time: “{excerpt(f.last_note)}”</p>}
 
           <div className="spacer" />
 
@@ -132,11 +149,13 @@ export default function FriendList() {
                 onAct={(style) => reachOut(f, style)}
               />
 
-              <SnoozeActions
-                cadenceDays={f.cadence_days}
-                busy={busyId === f.id}
-                onSnooze={(days) => onSnooze(f, days)}
-              />
+              {f.days_overdue >= 0 && (
+                <SnoozeActions
+                  cadenceDays={f.cadence_days}
+                  busy={busyId === f.id}
+                  onSnooze={(days) => onSnooze(f, days)}
+                />
+              )}
             </>
           )}
         </div>

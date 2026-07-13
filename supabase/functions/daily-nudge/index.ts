@@ -29,7 +29,20 @@ const appServer = await webpush.ApplicationServer.new({
   }),
 })
 
-type Friend = { name: string; days_overdue: number; nudge_style: string }
+type Friend = {
+  name: string
+  days_overdue: number
+  nudge_style: string
+  birthday_in_days: number | null
+}
+
+const birthdaySoon = (f: Friend) => f.birthday_in_days !== null && f.birthday_in_days <= 3
+
+function birthdayTitle(f: Friend): string {
+  if (f.birthday_in_days === 0) return `It's ${f.name}'s birthday`
+  if (f.birthday_in_days === 1) return `${f.name}'s birthday is tomorrow`
+  return `${f.name}'s birthday is in ${f.birthday_in_days} days`
+}
 
 /** "Maya", "Maya and Tom", "Maya, Tom and 2 others" */
 function nameList(names: string[]): string {
@@ -57,12 +70,31 @@ function titleFor(friend: Friend): string {
 }
 
 function composeMessage(friends: Friend[]) {
-  // Most overdue first, so the name we lead with is the one that matters most.
-  const sorted = [...friends].sort((a, b) => b.days_overdue - a.days_overdue)
-  const names = sorted.map((f) => f.name)
+  // A birthday is the strongest reason there is, so it takes the title over any amount
+  // of overdue-ness; everyone else rides along in the body.
+  const birthdays = friends
+    .filter(birthdaySoon)
+    .sort((a, b) => a.birthday_in_days! - b.birthday_in_days!)
+  const overdue = friends
+    .filter((f) => f.days_overdue >= 0 && !birthdaySoon(f))
+    .sort((a, b) => b.days_overdue - a.days_overdue)
 
-  if (sorted.length === 1) {
-    const f = sorted[0]
+  if (birthdays.length > 0) {
+    const b = birthdays[0]
+    const others = [...birthdays.slice(1), ...overdue].map((f) => f.name)
+    const base =
+      b.birthday_in_days === 0
+        ? `Today's the day — say happy birthday.`
+        : `The best excuse there is to reach out.`
+    const body =
+      others.length > 0
+        ? `${base} ${nameList(others)} ${others.length === 1 ? 'is' : 'are'} also waiting on a catch-up.`
+        : base
+    return { title: birthdayTitle(b), body, url: '/' }
+  }
+
+  if (overdue.length === 1) {
+    const f = overdue[0]
     const body =
       f.days_overdue === 0
         ? `Today's a good day for it.`
@@ -73,8 +105,8 @@ function composeMessage(friends: Friend[]) {
   }
 
   return {
-    title: `${sorted.length} people to catch up with`,
-    body: `${nameList(names)} are overdue for a catch-up.`,
+    title: `${overdue.length} people to catch up with`,
+    body: `${nameList(overdue.map((f) => f.name))} are overdue for a catch-up.`,
     url: '/',
   }
 }
@@ -89,12 +121,12 @@ Deno.serve(async (req) => {
     })
   }
 
-  // Service role bypasses RLS, so this sees every user's overdue friends at once.
-  // days_overdue >= 0 means due today or already past due.
+  // Service role bypasses RLS, so this sees every user's friends at once. Two reasons
+  // put someone in a nudge: overdue (days_overdue >= 0), or a birthday within 3 days.
   const { data: overdue, error } = await admin
     .from('friend_overview')
-    .select('user_id, name, days_overdue, nudge_style')
-    .gte('days_overdue', 0)
+    .select('user_id, name, days_overdue, nudge_style, birthday_in_days')
+    .or('days_overdue.gte.0,birthday_in_days.lte.3')
 
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), {
@@ -110,6 +142,7 @@ Deno.serve(async (req) => {
       name: row.name,
       days_overdue: row.days_overdue,
       nudge_style: row.nudge_style,
+      birthday_in_days: row.birthday_in_days,
     })
     byUser.set(row.user_id, list)
   }

@@ -31,6 +31,26 @@ export function formatDate(iso) {
   })
 }
 
+export function birthdayLabel(inDays) {
+  if (inDays === 0) return 'Birthday today'
+  if (inDays === 1) return 'Birthday tomorrow'
+  return `Birthday in ${plural(inDays, 'day')}`
+}
+
+/** "Jul 15" — a stored birthday, shown without pretending the year matters. */
+export function formatMonthDay(month, day) {
+  return new Date(2000, month - 1, day).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+/** Old notes can be long; a conversation starter should be a glance, not a document. */
+export function excerpt(text, max = 90) {
+  const t = text.trim()
+  return t.length <= max ? t : `${t.slice(0, max - 1).trimEnd()}…`
+}
+
 export function todayISO() {
   const now = new Date()
   const pad = (n) => String(n).padStart(2, '0')
