@@ -10,3 +10,6 @@ vapid*.json
 .env*
 .agents
 .claude/skills
+
+# Local product reference, deliberately untracked
+ROADMAP.md
