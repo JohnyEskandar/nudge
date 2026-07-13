@@ -31,10 +31,12 @@ body {
   line-height: 1.5;
 }
 
+/* The bottom padding clears the floating "+ Add someone" button, which is fixed and
+   would otherwise sit on top of whatever the page ends with — and swallow taps on it. */
 .app {
   max-width: 560px;
   margin: 0 auto;
-  padding: 32px 20px calc(48px + env(safe-area-inset-bottom));
+  padding: 32px 20px calc(104px + env(safe-area-inset-bottom));
 }
 
 /* ------------------------------------------------------------------ type */
@@ -106,10 +108,14 @@ h2 {
   gap: 12px;
 }
 
+/* On the Today card the name is a link through to the person's page, but it should read
+   as a name, not as a hyperlink. */
 .friend-name {
   font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.01em;
+  color: inherit;
+  text-decoration: none;
 }
 
 .friend-meta {
@@ -418,4 +424,20 @@ a.btn {
   padding: 56px 0;
   text-align: center;
   color: var(--ink-faint);
+}
+
+/* The way through to the full list. Quiet: Today is the screen that matters. */
+.see-all {
+  display: block;
+  margin-top: 24px;
+  padding: 14px 4px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.see-all:hover {
+  color: var(--accent);
 }

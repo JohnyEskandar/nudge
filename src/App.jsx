@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import Login from './screens/Login'
 import FriendList from './screens/FriendList'
+import People from './screens/People'
 import AddFriend from './screens/AddFriend'
 import FriendDetail from './screens/FriendDetail'
 
@@ -43,6 +44,7 @@ export default function App() {
     <div className="app">
       <Routes>
         <Route path="/" element={<FriendList session={session} />} />
+        <Route path="/people" element={<People />} />
         <Route path="/add" element={<AddFriend />} />
         <Route path="/friend/:id" element={<FriendDetail />} />
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -3,15 +3,23 @@ import { Link, useNavigate } from 'react-router-dom'
 import { listFriends, snoozeFriend } from '../lib/api'
 import { supabase } from '../lib/supabase'
 import { dueLabel, lastContactLabel } from '../lib/format'
+import { firstName } from '../lib/share'
 import { sentMessage, useReachOut } from '../lib/useReachOut'
 import ReachOutAction from '../components/ReachOutAction'
 import PushOptIn from '../components/PushOptIn'
+
+/** listFriends sorts most-overdue-first, so the nearest of the not-yet-due leads. */
+function nextUp(upcoming) {
+  const soonest = upcoming[0]
+  return `${firstName(soonest.name)} ${dueLabel(soonest.days_overdue).text.toLowerCase()}`
+}
 
 /**
  * Home is a daily ritual, not a database listing. It leads with the handful of people
  * who are actually due, each with their reach-out button right there — so the whole loop
  * (reach out → it logs itself → the clock resets) happens without drilling into anyone's
- * page. Everyone else waits quietly below.
+ * page. Everyone else lives one tap away on My people, so this screen never becomes the
+ * list it replaced.
  */
 export default function FriendList() {
   const [friends, setFriends] = useState(null)
@@ -124,22 +132,14 @@ export default function FriendList() {
         </div>
       ))}
 
-      {upcoming.length > 0 && (
-        <>
-          <h2 style={{ marginTop: 28 }}>Coming up</h2>
-          {upcoming.map((f) => (
-            <Link className="friend-card" key={f.id} to={`/friend/${f.id}`}>
-              <div className="friend-top">
-                <span className="friend-name">{f.name}</span>
-                <span className="status">{dueLabel(f.days_overdue).text}</span>
-              </div>
-              <div className="friend-meta">
-                {lastContactLabel(f.days_since_contact, Boolean(f.last_interaction_date))}
-                {f.city ? ` · ${f.city}` : ''} · every {f.cadence_days} days
-              </div>
-            </Link>
-          ))}
-        </>
+      {/* Everyone else stays out of the way — one tap, not one scroll. */}
+      {friends?.length > 0 && (
+        <Link className="see-all" to="/people">
+          {upcoming.length > 0 && due.length > 0
+            ? `All ${friends.length} people — next up ${nextUp(upcoming)}`
+            : `All ${friends.length} people`}
+          <span aria-hidden="true"> →</span>
+        </Link>
       )}
 
       <button className="btn add-fab" onClick={() => navigate('/add')}>
