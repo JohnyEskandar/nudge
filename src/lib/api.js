@@ -143,6 +143,56 @@ export async function updateFriend(
 }
 
 /**
+ * The part of a bug report nobody thinks to include, and that we would ask for badly.
+ *
+ * "It never notified me" is three different bugs depending on this: an iOS app opened in a
+ * Safari tab has no Push API at all, an installed one with permission 'denied' cannot be
+ * asked again, and a desktop tab that was never asked is simply working as designed. The
+ * timezone is here because every due-date in the app is currently computed in UTC, so a
+ * complaint about a nudge landing on the wrong day is only legible next to where the
+ * person actually is.
+ */
+function deviceContext() {
+  const installed =
+    window.matchMedia?.('(display-mode: standalone)').matches || navigator.standalone === true
+
+  return {
+    user_agent: navigator.userAgent,
+    installed,
+    push_supported: 'PushManager' in window,
+    notification_permission:
+      typeof Notification === 'undefined' ? 'unsupported' : Notification.permission,
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    language: navigator.language,
+    viewport: `${window.innerWidth}×${window.innerHeight}`,
+  }
+}
+
+/**
+ * The app's return path. Without it a tester who finds Nudge annoying, or who never got a
+ * nudge at all, just quietly stops opening it and we learn nothing from the one cohort we
+ * have.
+ */
+export async function sendFeedback({ kind, message }) {
+  const { data: session } = await supabase.auth.getUser()
+  const userId = session?.user?.id
+  if (!userId) throw new Error('Not signed in.')
+
+  return unwrap(
+    await supabase
+      .from('feedback')
+      .insert({
+        user_id: userId,
+        kind,
+        message: message.trim(),
+        context: deviceContext(),
+      })
+      .select()
+      .single(),
+  )
+}
+
+/**
  * Erases the account for good. Only the service role can delete an auth user, so the work
  * happens in the delete-account edge function; it identifies the caller from this access
  * token alone, never from anything we send it. Every table cascades off auth.users, so

@@ -14,7 +14,8 @@
     "icons": "node scripts/generate-icons.mjs",
     "vapid": "node scripts/generate-vapid-keys.mjs",
     "seed": "node scripts/seed.mjs",
-    "verify:push": "node scripts/verify-push.mjs"
+    "verify:push": "node scripts/verify-push.mjs",
+    "verify:feedback": "node scripts/verify-feedback.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",

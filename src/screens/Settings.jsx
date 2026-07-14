@@ -62,6 +62,18 @@ export default function Settings() {
 
       {error && <div className="error">{error}</div>}
 
+      {/* First, because it's the only thing on this screen we're asking *of* you. */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h2>Send feedback</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Nudge is new and shared with a handful of people. If something is annoying or
+          broken, telling us is how it gets fixed.
+        </p>
+        <button className="btn btn-secondary" onClick={() => navigate('/feedback')}>
+          Tell us what you think
+        </button>
+      </div>
+
       <div className="card" style={{ marginBottom: 16 }}>
         <h2>Your data</h2>
         <p className="muted" style={{ marginTop: 0 }}>

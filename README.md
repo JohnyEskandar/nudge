@@ -102,8 +102,9 @@ Once opened from the home screen, the button appears and push behaves normally.
 ## Verifying
 
 ```sh
-npm run seed         # 5 friends across all categories, asserts the overdue sort
-npm run verify:push  # drives a real browser, closes it, then triggers the function
+npm run seed             # 5 friends across all categories, asserts the overdue sort
+npm run verify:push      # drives a real browser, closes it, then triggers the function
+npm run verify:feedback  # walks Today → Settings → Send feedback, then audits the RLS
 ```
 
 `verify:push` subscribes to the real push service, **closes the page**, invokes
@@ -117,6 +118,50 @@ Two things it needs, both learned the hard way:
   a plain `browser.newContext()` is incognito-like — `pushManager.subscribe()` fails
   with `Registration failed - permission denied` however many permissions you grant.
   The script uses `launchPersistentContext` for this reason.
+
+### Signing a test browser in
+
+**Navigating to an admin-generated magic link does not sign the app in.** The client runs
+`flowType: 'pkce'`, and auth-js *rejects* a link that comes back as an implicit
+`#access_token=…` hash — "Not a valid PKCE flow url" — leaving you on the login screen
+with no error shown. Links minted by `auth.admin.generateLink()` carry no code challenge,
+so GoTrue always returns that shape.
+
+Real sign-ins are unaffected: Google and an emailed link opened in the same browser both
+come back as `?code=`, and the paste-a-link box calls `verifyOtp` directly. But a test has
+to redeem the token itself and hand the browser the session:
+
+```js
+const { data } = await anon.auth.verifyOtp({ type: 'magiclink', token_hash: link.properties.hashed_token })
+await page.addInitScript(([k, v]) => localStorage.setItem(k, v),
+  [`sb-${projectRef}-auth-token`, JSON.stringify(data.session)])
+```
+
+That key and that shape — plain JSON, no wrapper — are what auth-js reads on boot. See
+`scripts/verify-feedback.mjs`.
+
+## Feedback
+
+`feedback` is the app's return path: a note, a kind (`problem` / `idea` / `other`), and a
+`context` blob captured automatically. The context is the point — "it never notified me"
+is three different bugs depending on whether the app is installed to the home screen, and
+`timezone` is there because every due date is currently computed in UTC.
+
+RLS lets you insert and read *your own* notes and nothing else, so read them with the
+service role:
+
+```sql
+select created_at, kind, message,
+       context->>'installed'   as installed,
+       context->>'timezone'    as tz,
+       context->>'user_agent'  as ua
+from public.feedback
+order by created_at desc;
+```
+
+It cascades off `auth.users`, so deleting an account takes the person's feedback with it.
+That is deliberate: the alternative is telling someone they were forgotten while keeping
+something they wrote.
 
 ## Auth
 

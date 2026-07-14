@@ -11,5 +11,8 @@ vapid*.json
 .agents
 .claude/skills
 
+# Screenshots the verification scripts take to be looked at, not kept
+scripts/.*.png
+
 # Local product reference, deliberately untracked
 ROADMAP.md
