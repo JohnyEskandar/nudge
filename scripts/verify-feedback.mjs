@@ -49,6 +49,15 @@ async function userFor(email) {
 const author = await userFor(AUTHOR)
 const other = await userFor(OTHER)
 
+// The walk below starts on Today, and Today sends a user with an empty list straight to
+// /welcome. Without this the script races that redirect — it clicks through on the frame
+// before the friend fetch resolves, and "✓ signed in, on Today" means nothing.
+const { count: friendCount } = await admin
+  .from('friends')
+  .select('id', { count: 'exact', head: true })
+  .eq('user_id', author.id)
+if (!friendCount) fail(`${AUTHOR} has no friends, so Today redirects to /welcome. Run: npm run seed`)
+
 // A message unique to this run, so the row we read back is unambiguously the one the
 // browser just wrote and not a leftover from a previous verification.
 const MESSAGE = `The 3-day snooze is too short — verify run ${Date.now()}`

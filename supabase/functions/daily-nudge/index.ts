@@ -121,12 +121,24 @@ Deno.serve(async (req) => {
     })
   }
 
+  // An optional audience of one. The cron posts `{}` and so nudges everyone, exactly as
+  // before — but a test can now name itself and reach only its own devices. Without this,
+  // running verify:push meant sending a real notification to every real person using the
+  // app, which is a thing you can only do so many times before it stops being a test and
+  // starts being spam.
+  const body = await req.json().catch(() => ({}))
+  const onlyUserId: string | undefined = body?.user_id
+
   // Service role bypasses RLS, so this sees every user's friends at once. Two reasons
   // put someone in a nudge: overdue (days_overdue >= 0), or a birthday within 3 days.
-  const { data: overdue, error } = await admin
+  let overdueQuery = admin
     .from('friend_overview')
     .select('user_id, name, days_overdue, nudge_style, birthday_in_days')
     .or('days_overdue.gte.0,birthday_in_days.lte.3')
+
+  if (onlyUserId) overdueQuery = overdueQuery.eq('user_id', onlyUserId)
+
+  const { data: overdue, error } = await overdueQuery
 
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), {
@@ -167,8 +179,10 @@ Deno.serve(async (req) => {
   }
 
   let sent = 0
-  let pruned = 0
   const failures: string[] = []
+  // Pruning deletes a real person's only way of being reminded, so it must never be a
+  // silent number. Record what the push service actually said before dropping the row.
+  const pruned: { host: string; status: number | null }[] = []
   const notifiedUsers = new Set<string>()
 
   for (const row of subs ?? []) {
@@ -186,8 +200,12 @@ Deno.serve(async (req) => {
       // 410 Gone (or 404) means the browser threw this subscription away — the user
       // uninstalled or cleared data. Drop it so we stop trying forever.
       if (err instanceof webpush.PushMessageError && err.isGone()) {
+        const endpoint = (row.subscription as { endpoint: string }).endpoint
+        pruned.push({
+          host: new URL(endpoint).host,
+          status: (err as unknown as { response?: Response }).response?.status ?? null,
+        })
         await admin.from('push_subscriptions').delete().eq('id', row.id)
-        pruned++
       } else {
         failures.push(String(err))
       }
@@ -200,7 +218,8 @@ Deno.serve(async (req) => {
       users_overdue: byUser.size,
       users_notified: notifiedUsers.size,
       sent,
-      pruned,
+      pruned: pruned.length,
+      pruned_detail: pruned,
       failures,
     }),
     { headers: { 'Content-Type': 'application/json' } },

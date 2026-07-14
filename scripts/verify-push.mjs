@@ -44,16 +44,34 @@ if (uErr) throw uErr
 const user = userRow.users.find((u) => u.email === EMAIL)
 if (!user) throw new Error(`No user ${EMAIL}. Run scripts/seed.mjs first.`)
 
-// A genuine magic link. We navigate the browser to it rather than forging a session,
-// so the real Login -> redirect -> session path is what gets exercised.
+/**
+ * A genuine session, redeemed from a genuine one-time token — but handed to the browser
+ * through storage rather than by navigating the link.
+ *
+ * This script used to open the link itself, and that quietly stopped working: the app runs
+ * `flowType: 'pkce'`, and auth-js *rejects* a link that comes back as an implicit
+ * `#access_token=…` hash ("Not a valid PKCE flow url"). Links minted by generateLink carry
+ * no code challenge, so GoTrue always returns that shape, and the browser just sat on the
+ * login screen. Real sign-ins never hit this — Google and an emailed link opened in the
+ * same browser both come back as `?code=`, and the paste-a-link box calls verifyOtp
+ * directly — but a test cannot borrow that door. Auth is not what this script is proving;
+ * push is.
+ */
+const anon = createClient(SUPABASE_URL, ANON_KEY, { auth: { persistSession: false } })
 const { data: link, error: linkErr } = await admin.auth.admin.generateLink({
   type: 'magiclink',
   email: EMAIL,
-  options: { redirectTo: APP_URL },
 })
 if (linkErr) throw linkErr
 
+const { data: redeemed, error: otpErr } = await anon.auth.verifyOtp({
+  type: 'magiclink',
+  token_hash: link.properties.hashed_token,
+})
+if (otpErr) throw otpErr
+
 const origin = new URL(APP_URL).origin
+const projectRef = new URL(SUPABASE_URL).hostname.split('.')[0]
 
 // Three constraints, all real:
 //   - headless Chromium does not talk to the push service, so this must be headed.
@@ -71,16 +89,21 @@ const ctx = await chromium.launchPersistentContext(userDataDir, {
 })
 await ctx.grantPermissions(['notifications'], { origin })
 
+// Exactly where auth-js looks, in exactly the shape it writes: plain JSON, no wrapper.
+await ctx.addInitScript(
+  ([key, value]) => window.localStorage.setItem(key, value),
+  [`sb-${projectRef}-auth-token`, JSON.stringify(redeemed.session)],
+)
+
 const page = await ctx.newPage()
 page.on('console', (m) => {
   const t = m.text()
   if (/error|fail/i.test(t)) console.log(`   [browser] ${t}`)
 })
 
-// Follow the magic link exactly as a user clicking it in their inbox would.
-await page.goto(link.properties.action_link)
-await page.waitForSelector('text=People', { timeout: 30000 })
-console.log('✓ magic link redeemed — signed in, friend list rendered')
+await page.goto(APP_URL)
+await page.waitForSelector('h1:has-text("Today")', { timeout: 30000 })
+console.log('✓ signed in — Today rendered')
 
 await page.waitForFunction(() => navigator.serviceWorker.controller !== null, {
   timeout: 20000,
@@ -115,13 +138,16 @@ console.log('✓ subscription saved to push_subscriptions')
 await page.close()
 console.log('\n✓ PAGE CLOSED — no app running. Triggering the scheduled function…\n')
 
+// Scoped to this test user. The cron posts {} and still nudges everybody; naming a user
+// here means running this script cannot send a real notification to a real person's phone,
+// which it did every single time before.
 const res = await fetch(`${SUPABASE_URL}/functions/v1/daily-nudge`, {
   method: 'POST',
   headers: {
     Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
     'Content-Type': 'application/json',
   },
-  body: '{}',
+  body: JSON.stringify({ user_id: user.id }),
 })
 const body = await res.json()
 console.log(`daily-nudge -> ${res.status} ${JSON.stringify(body)}\n`)
@@ -149,6 +175,11 @@ const shown = await probe.evaluate(async () => {
 })
 
 await ctx.close()
+
+// The browser profile was a temp dir that no longer exists, so this subscription is now a
+// dead endpoint. Leave it behind and the nightly cron keeps pushing at it until the push
+// service finally answers 410 — noise in the failure counts of every run after this one.
+await admin.from('push_subscriptions').delete().eq('user_id', user.id)
 
 if (!shown.length) {
   console.error('FAIL: no notification was displayed by the service worker')

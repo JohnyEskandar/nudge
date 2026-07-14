@@ -111,6 +111,10 @@ npm run verify:feedback  # walks Today → Settings → Send feedback, then audi
 `daily-nudge`, and then reads back `registration.getNotifications()` — so it only
 passes if a real notification was delivered to a service worker with no app running.
 
+It invokes `daily-nudge` with `{ "user_id": … }`, which scopes the fan-out to the test
+user. Without that, running the test sent a real notification to **every real person using
+the app** — the cron still nudges everybody, because it posts `{}`.
+
 Two things it needs, both learned the hard way:
 
 - It must run **headed**. Headless Chromium will not talk to the push service.
@@ -191,9 +195,18 @@ land on localhost from the deployed site, that is why. Both the Site URL and the
 allow-list must name the deployed origin.
 
 To exercise the nightly path itself — Vault → `pg_net` → the function — without waiting
-for the cron, run the trigger by hand and read the response `pg_net` recorded:
+for the cron, run the trigger by hand and read the response `pg_net` recorded. **This
+nudges every overdue user for real**, so it is not a dry run:
 
 ```sql
 select public.trigger_daily_nudge();
 select status_code, content from net._http_response order by created desc limit 1;
 ```
+
+### Pruning
+
+A push service answering 404/410 means the browser threw the subscription away, so
+`daily-nudge` deletes the row — otherwise it would push at a dead endpoint forever. That
+delete is the only thing standing between a person and their reminders, so the response
+reports `pruned_detail: [{ host, status }]` rather than a bare count. If a real endpoint
+ever starts getting pruned, that is where it will show up.
