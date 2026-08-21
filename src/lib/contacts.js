@@ -66,8 +66,17 @@ function takePhone(line) {
   return { phone: null, rest: line }
 }
 
+/**
+ * A "name" with no letters at all is a phone number that survived the lift — a segment
+ * like "+1 555 010 1234, +1 555 010 9999" leaves the second number sitting where a name
+ * should be. Not worth teaching the splitter about; worth refusing to tick.
+ */
+const PHONE_SHAPED_RE = /^[+()\s.-]*\d[\d+()\s.-]*$/
+
 const isUnlikelyName = (name) =>
-  name.length > UNLIKELY_MAX_CHARS || name.split(' ').length > UNLIKELY_MAX_WORDS
+  name.length > UNLIKELY_MAX_CHARS ||
+  name.split(' ').length > UNLIKELY_MAX_WORDS ||
+  PHONE_SHAPED_RE.test(name)
 
 function candidate(name, phone, category) {
   const note = isUnlikelyName(name) ? 'unlikely' : null

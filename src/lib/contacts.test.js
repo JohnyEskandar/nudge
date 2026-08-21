@@ -149,6 +149,22 @@ describe('parseContacts — implausible names', () => {
     expect(c.note).toBeNull()
     expect(c.include).toBe(true)
   })
+
+  // Two numbers and no name leaves the second number standing where a name should be.
+  // Nothing else flags it, so without this it arrives ticked and unlabelled and the
+  // default action imports a friend called "+1 555 010 9999".
+  it('flags a phone number that ended up as the name', () => {
+    const [c] = parseContacts('+1 555 010 1234, +1 555 010 9999')
+    expect(c.name).toBe('+1 555 010 9999')
+    expect(c.note).toBe('unlikely')
+    expect(c.include).toBe(false)
+  })
+
+  it('leaves a real name that happens to contain digits alone', () => {
+    const [c] = parseContacts('Maya Okonkwo 2nd')
+    expect(c.note).toBeNull()
+    expect(c.include).toBe(true)
+  })
 })
 
 describe('parseContacts — limits', () => {
