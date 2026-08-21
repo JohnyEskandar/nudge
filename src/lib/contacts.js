@@ -39,7 +39,8 @@ function cleanName(s) {
   return s
     .replace(EMAIL_RE, ' ')
     .replace(/[<>|;:]/g, ' ')
-    .replace(/,\s*$/,' ')
+    .replace(/,\s*$/, ' ')
+    .replace(/^\s*,\s*/, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .replace(EDGE_QUOTES_RE, '')
@@ -86,14 +87,31 @@ function splitSegments(text) {
  * "Maya Okonkwo, +1 555 010 1234" is one person, not a person and a fragment. Without
  * this the split strands the number in a segment with no name, and it is dropped
  * without anyone seeing it happen.
+ *
+ * A phone-only segment merges backward into a preceding name if one exists.
+ * If there's no preceding segment but a following segment exists, it merges
+ * forward instead — this prevents leading phones from being dropped silently.
  */
 function mergePhoneOnly(parts) {
   const merged = []
-  for (const part of parts) {
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i]
     const { phone, rest } = takePhone(stripDecoration(part))
     const isPhoneOnly = phone && !cleanName(rest)
-    if (isPhoneOnly && merged.length > 0) {
-      merged[merged.length - 1] += `,${part}`
+    if (isPhoneOnly) {
+      if (merged.length > 0) {
+        // Merge backward into the preceding segment, but only if it doesn't already have a phone
+        const lastSegment = merged[merged.length - 1]
+        const { phone: lastPhone } = takePhone(stripDecoration(lastSegment))
+        if (!lastPhone) {
+          merged[merged.length - 1] += `,${part}`
+        }
+        // If the preceding segment already has a phone, drop this one (already flagged)
+      } else if (i + 1 < parts.length) {
+        // Merge forward into the following segment
+        parts[i + 1] = `${part},${parts[i + 1]}`
+      }
+      // If no preceding or following segment, drop this phone-only segment (no name to attach to)
     } else {
       merged.push(part)
     }

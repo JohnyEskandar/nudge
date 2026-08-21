@@ -146,6 +146,24 @@ describe('parseContacts — limits', () => {
   })
 })
 
+describe('parseContacts — leading and edge cases', () => {
+  it('merges a leading phone-only segment forward into the following name', () => {
+    const [c] = parseContacts('+1 555 010 1234, Maya')
+    expect(c.name).toBe('Maya')
+    expect(c.phone).toBe('+1 555 010 1234')
+  })
+
+  it('drops a bare phone with no name to attach it to', () => {
+    expect(parseContacts('+1 555 010 1234')).toEqual([])
+  })
+
+  it('does not attach a second phone to a person who already has one', () => {
+    const out = parseContacts('+1 555 010 1234, Maya, +1 555 010 9999')
+    expect(out.map((c) => c.name)).toEqual(['Maya'])
+    expect(out.map((c) => c.phone)).toEqual(['+1 555 010 1234'])
+  })
+})
+
 describe('normalizeName', () => {
   it('ignores case and extra whitespace', () => {
     expect(normalizeName('  Maya   OKONKWO ')).toBe('maya okonkwo')
