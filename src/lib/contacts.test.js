@@ -211,6 +211,33 @@ describe('markDuplicates', () => {
     expect(markDuplicates(renamed, existing)[0].note).toBeNull()
   })
 
+  // Re-running over the whole list because some *other* row was edited must not undo a
+  // deliberate choice to import someone you already have.
+  it('keeps a duplicate the user ticked back on', () => {
+    const flagged = markDuplicates(parseContacts('Maya Okonkwo'), existing)
+    const reTicked = flagged.map((c) => ({ ...c, include: true }))
+    expect(markDuplicates(reTicked, existing)[0].include).toBe(true)
+  })
+
+  it('returns an already-flagged duplicate untouched', () => {
+    const flagged = markDuplicates(parseContacts('Maya Okonkwo'), existing)
+    expect(markDuplicates(flagged, existing)[0]).toBe(flagged[0])
+  })
+
+  it('never re-ticks a row the user unticked', () => {
+    const clean = markDuplicates(parseContacts('Ana Ruiz'), existing)
+    const unticked = clean.map((c) => ({ ...c, include: false }))
+    expect(markDuplicates(unticked, existing)[0].include).toBe(false)
+  })
+
+  it('restores unlikely, not null, when an implausible name leaves a collision', () => {
+    const long = 'x'.repeat(61)
+    const flagged = markDuplicates(parseContacts(long), [{ name: long }])
+    expect(flagged[0].note).toBe('duplicate')
+    const renamed = flagged.map((c) => ({ ...c, name: 'y'.repeat(61) }))
+    expect(markDuplicates(renamed, [{ name: long }])[0].note).toBe('unlikely')
+  })
+
   it('copes with no existing friends', () => {
     expect(markDuplicates(parseContacts('Maya'), [])[0].note).toBeNull()
     expect(markDuplicates(parseContacts('Maya'), undefined)[0].note).toBeNull()

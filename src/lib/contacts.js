@@ -150,15 +150,21 @@ export function parseContacts(text, { category = 'friend' } = {}) {
  * create a second Maya. Duplicates arrive unchecked but visible — silently removing
  * them would leave someone wondering which of their names went missing.
  *
- * Re-run after a name is edited: a row renamed out of a collision loses the flag. Its
- * checkbox is left as the user last set it rather than being helpfully re-ticked.
+ * Re-run after a name is edited, which is why it only ever unticks a row on the
+ * *transition* into duplicate status. Ticking a duplicate back on is a real choice —
+ * you may well want this person twice — and re-running the check over the whole list
+ * because some other row was edited must not quietly undo it. After the first flag the
+ * checkbox belongs to the user, in both directions.
  */
 export function markDuplicates(candidates, existingFriends) {
   const taken = new Set((existingFriends ?? []).map((f) => normalizeName(f.name)))
 
   return candidates.map((c) => {
     const isDuplicate = taken.has(normalizeName(c.name))
-    if (isDuplicate) return { ...c, note: 'duplicate', include: false }
+    if (isDuplicate) {
+      if (c.note === 'duplicate') return c // already flagged; the checkbox is theirs now
+      return { ...c, note: 'duplicate', include: false }
+    }
     if (c.note === 'duplicate') {
       return { ...c, note: isUnlikelyName(c.name) ? 'unlikely' : null }
     }
