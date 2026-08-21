@@ -68,9 +68,20 @@ export default function FriendList() {
   useEffect(() => {
     if (localStorage.getItem(PICKER_PENDING_KEY) !== '1') return
     if (pickerSupport().state !== 'supported') return
-    localStorage.removeItem(PICKER_PENDING_KEY)
     setPickerReady(true)
   }, [])
+
+  /**
+   * Cleared on the tap, not on the render. Today can be unmounted out from under this
+   * notice — the onboarding redirect does exactly that for a new user with nobody on
+   * their list — and clearing on render would burn the one signal we have that someone
+   * went and turned the flag on.
+   */
+  function acknowledgePicker(then) {
+    localStorage.removeItem(PICKER_PENDING_KEY)
+    setPickerReady(false)
+    if (then) then()
+  }
 
   const { reachOut, busyId, sent, error, setError } = useReachOut(load)
 
@@ -124,10 +135,10 @@ export default function FriendList() {
             pick people straight from your contacts now.
           </p>
           <div className="row">
-            <button className="btn" style={{ width: 'auto' }} onClick={() => navigate('/import')}>
+            <button className="btn" style={{ width: 'auto' }} onClick={() => acknowledgePicker(() => navigate('/import'))}>
               Choose from my contacts
             </button>
-            <button className="btn-quiet" onClick={() => setPickerReady(false)}>
+            <button className="btn-quiet" onClick={() => acknowledgePicker()}>
               Later
             </button>
           </div>

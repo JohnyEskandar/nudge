@@ -68,11 +68,13 @@ export default function People() {
         )
       })}
 
-      <div className="center" style={{ marginTop: 24 }}>
-        <button className="btn-quiet" onClick={() => navigate('/import')}>
-          Add several at once
-        </button>
-      </div>
+      {friends?.length > 0 && (
+        <div className="center" style={{ marginTop: 24 }}>
+          <button className="btn-quiet" onClick={() => navigate('/import')}>
+            Add several at once
+          </button>
+        </div>
+      )}
 
       <button className="btn add-fab" onClick={() => navigate('/add')}>
         + Add someone
