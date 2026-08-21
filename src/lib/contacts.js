@@ -77,11 +77,17 @@ function candidate(name, phone, category) {
 /**
  * On a single line, commas separate people. Across several lines they don't — plenty of
  * lists are written "Okonkwo, Maya".
+ *
+ * Blank lines are dropped *before* the count, because a trailing newline is invisible and
+ * you get one from nearly everywhere: a spreadsheet cell copy (Excel and Sheets append
+ * \r\n), a copied line in Notes, or just pressing Enter after pasting. Counting it would
+ * make "Maya, Tom, Ana\n" look like a multi-line list and turn three people into one
+ * person named after all three.
  */
 function splitSegments(text) {
-  const lines = text.split(/\r?\n/)
+  const lines = text.split(/\r?\n/).filter((l) => l.trim())
   if (lines.length > 1) return lines
-  const parts = text.split(',')
+  const parts = (lines[0] ?? '').split(',')
   return parts.length > 1 ? mergePhoneOnly(parts) : parts
 }
 

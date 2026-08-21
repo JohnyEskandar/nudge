@@ -24,6 +24,21 @@ describe('parseContacts — splitting', () => {
     expect(names('Maya, Tom, Ana')).toEqual(['Maya', 'Tom', 'Ana'])
   })
 
+  // A trailing newline is invisible and comes free with a spreadsheet cell copy, a line
+  // copied out of Notes, or an Enter pressed after pasting. Counting it as a second line
+  // used to collapse the whole comma list into one person named "Maya, Tom, Ana".
+  it('splits on commas despite a trailing newline', () => {
+    expect(names('Maya, Tom, Ana\n')).toEqual(['Maya', 'Tom', 'Ana'])
+  })
+
+  it('splits on commas despite a trailing CRLF', () => {
+    expect(names('Maya, Tom, Ana\r\n')).toEqual(['Maya', 'Tom', 'Ana'])
+  })
+
+  it('splits on commas despite a trailing blank line', () => {
+    expect(names('Maya, Tom, Ana\n  ')).toEqual(['Maya', 'Tom', 'Ana'])
+  })
+
   it('leaves "Last, First" alone when there are newlines', () => {
     expect(names('Okonkwo, Maya\nOkafor, Sam')).toEqual(['Okonkwo, Maya', 'Okafor, Sam'])
   })
