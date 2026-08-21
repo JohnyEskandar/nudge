@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CATEGORIES, DEFAULT_CADENCE, addFriends, listFriends } from '../lib/api'
 import { markDuplicates, parseContacts, pickContacts, pickerSupport } from '../lib/contacts'
@@ -34,9 +34,22 @@ export default function Import() {
   const [error, setError] = useState(null)
   const [setup, setSetup] = useState(false)
 
+  /**
+   * The same list twice: state to re-render on, and a ref for onPick to read.
+   *
+   * onPick is async and spends seconds parked on the native picker, so the `existing`
+   * it closed over at click time is very likely stale by the time it resolves — and
+   * unlike a paste, its rows are set *after* the effect below has already run and
+   * no-opped on a null `rows`, so nothing would ever re-check them.
+   */
+  const existingRef = useRef([])
+
   useEffect(() => {
     listFriends()
-      .then((all) => setExisting(all))
+      .then((all) => {
+        existingRef.current = all
+        setExisting(all)
+      })
       .catch(() => setExisting([]))
   }, [])
 
@@ -77,7 +90,7 @@ export default function Import() {
       const picked = await pickContacts({ category })
       // Whoever got here has a working picker, so Today has nothing left to announce.
       localStorage.removeItem(PICKER_PENDING_KEY)
-      if (picked.length) setRows(markDuplicates(picked, existing))
+      if (picked.length) setRows(markDuplicates(picked, existingRef.current))
     } catch (e) {
       setError(`Couldn’t open your contacts: ${e.message}`)
     }

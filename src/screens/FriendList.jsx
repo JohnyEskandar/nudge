@@ -94,8 +94,13 @@ export default function FriendList() {
    */
   function acknowledgePicker(then) {
     localStorage.removeItem(PICKER_PENDING_KEY)
+    // Navigating away? Leave pickerReady alone and go. Flipping it first commits a
+    // render in the sync lane while react-router is still deferring its own location
+    // update inside a transition — Today is briefly still mounted with the key already
+    // gone, the redirect effect re-runs, and a replace to /welcome swallows the /import
+    // we were on our way to. Which is exactly this button's job.
+    if (then) return then()
     setPickerReady(false)
-    if (then) then()
   }
 
   const { reachOut, busyId, sent, error, setError } = useReachOut(load)

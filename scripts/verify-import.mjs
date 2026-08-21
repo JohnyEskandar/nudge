@@ -209,8 +209,10 @@ try {
     try {
       await browser.close()
     } catch (e) {
+      // Logged, not failed: the OS reaps the process when node exits, so nothing
+      // outlives the run. A non-zero exit here would mean "real data was left in
+      // production", which is what the two deletes below use it for.
       console.error(`   (cleanup) failed to close the browser: ${e.message}`)
-      process.exitCode = 1
     }
   }
   if (user) {
