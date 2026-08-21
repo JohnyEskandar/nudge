@@ -122,10 +122,13 @@ two people with their numbers attached.
 
 **Per line, in order:**
 
-1. Extract a phone: optional `+`, then a run of digits and `()-. ` containing **at least
-   7 digits**. Remove it from the line.
-2. Strip email-shaped tokens, so they cannot become names.
-3. Strip leading list markers: `-`, `*`, `•`, `1.`, `1)`, tabs.
+1. Strip leading list markers: `-`, `*`, `•`, `1.`, `1)`, tabs. **This must happen before
+   the phone is lifted**, not after: `.` and digits are both in the phone pattern's
+   character class, so a marker like `1.` left in place can be swallowed into the phone
+   match and turn `1. 555-0123 Maya` into a number nobody typed.
+2. Extract a phone: optional `+` or `(`, then a run of digits and `()-. ` containing **at
+   least 7 digits**. Remove it from the line.
+3. Strip email-shaped tokens, so they cannot become names.
 4. Strip stray `;` `|` `:` `<` `>`, surrounding quotes, and a **trailing** comma only.
    An interior comma survives: `Okonkwo, Maya` is a real way to write a name, and the
    splitting rule above exists precisely to protect it — stripping the comma here would
