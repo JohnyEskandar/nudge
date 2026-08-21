@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { addFriend, CATEGORIES, DEFAULT_CADENCE, DEFAULT_STYLE } from '../lib/api'
+import { addFriend, CATEGORIES, DEFAULT_CADENCE, DEFAULT_STYLE, listFriends } from '../lib/api'
 import { nudgeTitle, STYLE_DESCRIPTION } from '../lib/share'
 import PushOptIn from '../components/PushOptIn'
 
@@ -23,6 +23,14 @@ export default function Onboarding() {
   const [added, setAdded] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+
+  // added lives in component state, so a trip to /import or a stray refresh would come
+  // back with nothing and leave step 2 with no one to preview.
+  useEffect(() => {
+    listFriends()
+      .then((all) => setAdded((current) => (current.length ? current : all)))
+      .catch(() => {})
+  }, [])
 
   function finish() {
     localStorage.setItem(ONBOARDED_KEY, '1')
@@ -93,6 +101,12 @@ export default function Onboarding() {
             {saving ? 'Adding…' : 'Add to my people'}
           </button>
         </form>
+
+        <div className="center" style={{ marginTop: 16 }}>
+          <button className="btn-quiet" onClick={() => navigate('/import?from=welcome')}>
+            Add several at once
+          </button>
+        </div>
 
         {added.length > 0 && (
           <>

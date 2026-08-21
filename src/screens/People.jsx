@@ -43,6 +43,9 @@ export default function People() {
         <div className="empty">
           <p>No one here yet.</p>
           <p className="muted">Add the first person you want to stay close to.</p>
+          <button className="btn-quiet" onClick={() => navigate('/import')}>
+            Add several at once
+          </button>
         </div>
       )}
 
@@ -64,6 +67,12 @@ export default function People() {
           </Link>
         )
       })}
+
+      <div className="center" style={{ marginTop: 24 }}>
+        <button className="btn-quiet" onClick={() => navigate('/import')}>
+          Add several at once
+        </button>
+      </div>
 
       <button className="btn add-fab" onClick={() => navigate('/add')}>
         + Add someone
