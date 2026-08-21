@@ -105,6 +105,7 @@ Once opened from the home screen, the button appears and push behaves normally.
 npm run seed             # 5 friends across all categories, asserts the overdue sort
 npm run verify:push      # drives a real browser, closes it, then triggers the function
 npm run verify:feedback  # walks Today → Settings → Send feedback, then audits the RLS
+npm run verify:import    # pastes a list, checks the review list, imports, reads the rows back
 ```
 
 `verify:push` subscribes to the real push service, **closes the page**, invokes
