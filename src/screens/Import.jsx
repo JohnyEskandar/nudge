@@ -36,14 +36,24 @@ export default function Import() {
 
   useEffect(() => {
     listFriends()
-      .then((all) => {
-        setExisting(all)
-        // The user can paste and hit Review before this resolves; without this the rows
-        // built against an empty list would stay unflagged forever.
-        setRows((rs) => (rs ? markDuplicates(rs, all) : rs))
-      })
+      .then((all) => setExisting(all))
       .catch(() => setExisting([]))
   }, [])
+
+  /**
+   * Rows can exist before the friend list does — a paste reviewed while the fetch is
+   * still in flight, or a picker the user opened straight away — and a name edited in
+   * the review list can turn a row into a duplicate or out of one. Both are the same act,
+   * so both come through here.
+   */
+  function recheckDuplicates() {
+    setRows((rs) => (rs ? markDuplicates(rs, existing) : rs))
+  }
+
+  // Keyed on the list rather than on the fetch, so it does not matter which of the two
+  // lands first: whichever is second re-checks against the other. `existing` is set at
+  // most once, so this runs once.
+  useEffect(recheckDuplicates, [existing])
 
   const found = useMemo(() => parseContacts(text, { category }).length, [text, category])
   const chosen = rows?.filter((r) => r.include && r.name.trim()) ?? []
@@ -178,7 +188,7 @@ export default function Import() {
                   type="text"
                   value={r.name}
                   onChange={(e) => patch(r.key, { name: e.target.value })}
-                  onBlur={() => setRows((rs) => markDuplicates(rs, existing))}
+                  onBlur={recheckDuplicates}
                   aria-label={`Name, row ${i + 1} of ${rows.length}`}
                 />
               </div>
