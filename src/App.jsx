@@ -8,6 +8,7 @@ import Onboarding from './screens/Onboarding'
 import Settings from './screens/Settings'
 import Feedback from './screens/Feedback'
 import AddFriend from './screens/AddFriend'
+import Import from './screens/Import'
 import FriendDetail from './screens/FriendDetail'
 
 export default function App() {
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="/settings" element={<Settings />} />
         <Route path="/feedback" element={<Feedback />} />
         <Route path="/add" element={<AddFriend />} />
+        <Route path="/import" element={<Import />} />
         <Route path="/friend/:id" element={<FriendDetail />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
