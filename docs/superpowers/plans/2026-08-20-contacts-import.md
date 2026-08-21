@@ -1074,7 +1074,7 @@ export default function Import() {
                   value={r.name}
                   onChange={(e) => patch(r.key, { name: e.target.value })}
                   onBlur={() => setRows((rs) => markDuplicates(rs, existing))}
-                  aria-label="Name"
+                  aria-label={`Name, row ${i + 1} of ${rows.length}`}
                 />
               </div>
 
@@ -1679,7 +1679,9 @@ await page.fill('#paste', PASTE)
 await page.click('button:has-text("Review")')
 await page.waitForSelector('#batch')
 
-const shown = await page.$$eval('input[aria-label="Name"]', (els) => els.map((e) => e.value))
+// Matches on the prefix: each row's label is "Name, row 1 of 4", positional so it stays
+// stable while the user edits the name itself.
+const shown = await page.$$eval('input[aria-label^="Name, row"]', (els) => els.map((e) => e.value))
 if (shown.length !== EXPECTED.length) {
   await browser.close()
   fail(`review list has ${shown.length} rows, expected ${EXPECTED.length}: ${shown.join(' | ')}`)
