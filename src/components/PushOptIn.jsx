@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import {
   currentSubscription,
   enablePush,
-  isIOS,
   permissionState,
   pushSupport,
 } from '../lib/push'
+import { isIOS } from '../lib/device'
 
 const DISMISS_KEY = 'nudge.push.dismissed'
 

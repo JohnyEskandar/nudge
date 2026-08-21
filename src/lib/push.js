@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { isIOS, isStandalone } from './device'
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY
 
@@ -10,23 +11,6 @@ function urlBase64ToUint8Array(base64String) {
   const output = new Uint8Array(raw.length)
   for (let i = 0; i < raw.length; i++) output[i] = raw.charCodeAt(i)
   return output
-}
-
-export function isIOS() {
-  const ua = navigator.userAgent
-  return (
-    /iPad|iPhone|iPod/.test(ua) ||
-    // iPadOS 13+ reports itself as a Mac; touch points give it away.
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  )
-}
-
-/** True when running as an installed home-screen app rather than a browser tab. */
-export function isStandalone() {
-  return (
-    window.navigator.standalone === true ||
-    window.matchMedia('(display-mode: standalone)').matches
-  )
 }
 
 /**
