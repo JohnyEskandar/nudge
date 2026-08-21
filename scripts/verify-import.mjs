@@ -177,6 +177,12 @@ try {
   await page.click('button:has-text("Review")')
   await page.waitForSelector('#batch')
 
+  // The review list renders in the time it takes to click; the friend list it is matched
+  // against is a network round trip, so the duplicate flag lands a beat later. Reading the
+  // checkboxes straight after #batch is a coin toss — and losing it looks exactly like a
+  // real duplicate-detection bug. Wait for the state being asserted, then assert it.
+  await page.waitForSelector('.friend-meta:has-text("already on your list")', { timeout: 10000 })
+
   const boxes = await page.$$eval('input[type="checkbox"]', (els) => els.map((e) => e.checked))
   if (boxes[0] !== false) fail('an existing friend was not unchecked in the review list')
   if (boxes[1] !== true) fail('a new person was wrongly unchecked')
