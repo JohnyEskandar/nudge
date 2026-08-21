@@ -126,7 +126,11 @@ two people with their numbers attached.
    7 digits**. Remove it from the line.
 2. Strip email-shaped tokens, so they cannot become names.
 3. Strip leading list markers: `-`, `*`, `•`, `1.`, `1)`, tabs.
-4. Strip stray `,` `;` `|` `:` `<` `>` and surrounding quotes.
+4. Strip stray `;` `|` `:` `<` `>`, surrounding quotes, and a **trailing** comma only.
+   An interior comma survives: `Okonkwo, Maya` is a real way to write a name, and the
+   splitting rule above exists precisely to protect it — stripping the comma here would
+   undo that protection one step later. The trailing case is what a phone lifted off the
+   end of `Maya Okonkwo, +1 555 010 1234` leaves behind.
 5. Collapse runs of whitespace.
 
 What remains is the name.
