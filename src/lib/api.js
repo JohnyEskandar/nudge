@@ -68,6 +68,41 @@ export async function addFriend({ name, category, city, notes, phone, nudgeStyle
 }
 
 /**
+ * Import's write, and the reason import is one round trip rather than N.
+ *
+ * Deliberately all-or-nothing. What can actually fail here is RLS, the network, or a
+ * name we already rejected client-side — all of which fail every row at once, so
+ * per-row bookkeeping would be machinery for a case that doesn't arise, while leaving
+ * the real one ("six of ten landed") messier than writing nothing at all. A failure
+ * leaves the review list untouched and retry is one tap.
+ *
+ * Triggers seed reminder_settings and nudge_style per row, exactly as for a single add.
+ */
+export async function addFriends(rows) {
+  const { data: session } = await supabase.auth.getUser()
+  const userId = session?.user?.id
+  if (!userId) throw new Error('Not signed in.')
+  if (!rows.length) return []
+
+  return unwrap(
+    await supabase
+      .from('friends')
+      .insert(
+        rows.map((r) => ({
+          user_id: userId,
+          name: r.name.trim(),
+          category: r.category,
+          city: null,
+          notes: null,
+          phone: r.phone?.trim() || null,
+          nudge_style: DEFAULT_STYLE[r.category],
+        })),
+      )
+      .select(),
+  )
+}
+
+/**
  * One birthday per person, stored as month/day (the year is kept but only informational —
  * reminders recur). Replace rather than upsert: the uniqueness lives in a partial index
  * (`where kind = 'birthday'`), which PostgREST's on_conflict can't target.
