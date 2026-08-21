@@ -191,24 +191,32 @@ try {
 } finally {
   // Best-effort, every step independent of the others: a browser that won't close must
   // not stop the friends from being deleted, and friends that won't delete must not stop
-  // the user from being deleted. None of this may mask the original failure above.
+  // the user from being deleted. None of this may mask the original failure above —
+  // exitCode only ever goes to 1 here, never back to 0.
+  //
+  // The two halves are guarded differently on purpose. Playwright throws, so the browser
+  // gets a try/catch; supabase-js resolves with { error } and throws only on a transport
+  // fault, so wrapping those in a try/catch would silently ignore every failure it was
+  // meant to report — and this script's first real run is against production, where a
+  // skipped delete leaves a real auth user behind.
   if (browser) {
     try {
       await browser.close()
     } catch (e) {
       console.error(`   (cleanup) failed to close the browser: ${e.message}`)
+      process.exitCode = 1
     }
   }
   if (user) {
-    try {
-      await admin.from('friends').delete().eq('user_id', user.id)
-    } catch (e) {
-      console.error(`   (cleanup) failed to delete test friends: ${e.message}`)
+    const { error: friendsErr } = await admin.from('friends').delete().eq('user_id', user.id)
+    if (friendsErr) {
+      console.error(`   (cleanup) failed to delete test friends: ${friendsErr.message}`)
+      process.exitCode = 1
     }
-    try {
-      await admin.auth.admin.deleteUser(user.id)
-    } catch (e) {
-      console.error(`   (cleanup) failed to delete test user: ${e.message}`)
+    const { error: userErr } = await admin.auth.admin.deleteUser(user.id)
+    if (userErr) {
+      console.error(`   (cleanup) failed to delete test user: ${userErr.message}`)
+      process.exitCode = 1
     }
   }
 }
