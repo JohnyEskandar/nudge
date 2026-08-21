@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CATEGORIES, DEFAULT_CADENCE, addFriends, listFriends } from '../lib/api'
-import { markDuplicates, parseContacts } from '../lib/contacts'
+import { markDuplicates, parseContacts, pickContacts, pickerSupport } from '../lib/contacts'
+import PickerSetup, { PICKER_PENDING_KEY } from '../components/PickerSetup'
 
 const PLACEHOLDER = `Maya Okonkwo
 Sam Okafor +1 555 010 1234
@@ -31,6 +32,7 @@ export default function Import() {
   const [existing, setExisting] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [setup, setSetup] = useState(false)
 
   useEffect(() => {
     listFriends()
@@ -49,6 +51,26 @@ export default function Import() {
   function review() {
     setError(null)
     setRows(markDuplicates(parseContacts(text, { category }), existing))
+  }
+
+  /**
+   * Must stay inside the click's call stack — select() requires a user gesture, so an
+   * await before it would lose the permission to open the picker at all.
+   */
+  async function onPick() {
+    setError(null)
+    if (pickerSupport().state !== 'supported') {
+      setSetup(true)
+      return
+    }
+    try {
+      const picked = await pickContacts({ category })
+      // Whoever got here has a working picker, so Today has nothing left to announce.
+      localStorage.removeItem(PICKER_PENDING_KEY)
+      if (picked.length) setRows(markDuplicates(picked, existing))
+    } catch (e) {
+      setError(`Couldn’t open your contacts: ${e.message}`)
+    }
   }
 
   function patch(key, values) {
@@ -109,6 +131,22 @@ export default function Import() {
           <button className="btn" onClick={review} disabled={found === 0}>
             {found === 0 ? 'Add some names' : `Review ${plural(found, 'person', 'people')}`}
           </button>
+
+          <div className="center" style={{ marginTop: 16 }}>
+            <button className="btn-quiet" onClick={onPick}>
+              Or choose from my contacts
+            </button>
+          </div>
+
+          {setup && (
+            <PickerSetup
+              onReady={() => {
+                setSetup(false)
+                onPick()
+              }}
+              onDismiss={() => setSetup(false)}
+            />
+          )}
         </>
       ) : (
         <>
