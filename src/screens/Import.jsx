@@ -34,7 +34,12 @@ export default function Import() {
 
   useEffect(() => {
     listFriends()
-      .then(setExisting)
+      .then((all) => {
+        setExisting(all)
+        // The user can paste and hit Review before this resolves; without this the rows
+        // built against an empty list would stay unflagged forever.
+        setRows((rs) => (rs ? markDuplicates(rs, all) : rs))
+      })
       .catch(() => setExisting([]))
   }, [])
 
@@ -122,7 +127,7 @@ export default function Import() {
             </p>
           </div>
 
-          {rows.map((r) => (
+          {rows.map((r, i) => (
             <div className="card" key={r.key} style={{ marginBottom: 12 }}>
               <div className="row">
                 <input
@@ -136,7 +141,7 @@ export default function Import() {
                   value={r.name}
                   onChange={(e) => patch(r.key, { name: e.target.value })}
                   onBlur={() => setRows((rs) => markDuplicates(rs, existing))}
-                  aria-label="Name"
+                  aria-label={`Name, row ${i + 1} of ${rows.length}`}
                 />
               </div>
 
