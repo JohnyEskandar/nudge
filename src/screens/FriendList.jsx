@@ -8,6 +8,8 @@ import ReachOutAction from '../components/ReachOutAction'
 import SnoozeActions from '../components/SnoozeActions'
 import PushOptIn from '../components/PushOptIn'
 import { ONBOARDED_KEY } from './Onboarding'
+import { pickerSupport } from '../lib/contacts'
+import { PICKER_PENDING_KEY } from '../components/PickerSetup'
 
 /**
  * A neglected list would otherwise open as a wall of overdue cards, which is the guilt
@@ -35,6 +37,7 @@ function nextUp(upcoming) {
 export default function FriendList() {
   const [friends, setFriends] = useState(null)
   const [loadError, setLoadError] = useState(null)
+  const [pickerReady, setPickerReady] = useState(false)
   const navigate = useNavigate()
 
   const load = useCallback(async () => {
@@ -56,6 +59,18 @@ export default function FriendList() {
       navigate('/welcome', { replace: true })
     }
   }, [friends, navigate])
+
+  /**
+   * Turning the Safari flag on means quitting the app, which loses the screen that was
+   * asking for it. Someone who did exactly as they were told would otherwise come back
+   * to no acknowledgement at all and have to remember why they went to Settings.
+   */
+  useEffect(() => {
+    if (localStorage.getItem(PICKER_PENDING_KEY) !== '1') return
+    if (pickerSupport().state !== 'supported') return
+    localStorage.removeItem(PICKER_PENDING_KEY)
+    setPickerReady(true)
+  }, [])
 
   const { reachOut, busyId, sent, error, setError } = useReachOut(load)
 
@@ -101,6 +116,23 @@ export default function FriendList() {
       </div>
 
       <PushOptIn />
+
+      {pickerReady && (
+        <div className="notice">
+          <p>
+            <strong>Your contacts picker is ready.</strong> That switch worked — you can
+            pick people straight from your contacts now.
+          </p>
+          <div className="row">
+            <button className="btn" style={{ width: 'auto' }} onClick={() => navigate('/import')}>
+              Choose from my contacts
+            </button>
+            <button className="btn-quiet" onClick={() => setPickerReady(false)}>
+              Later
+            </button>
+          </div>
+        </div>
+      )}
 
       {(loadError || error) && <div className="error">{loadError || error}</div>}
 
