@@ -1,6 +1,13 @@
 
-import { describe, expect, it } from 'vitest'
-import { normalizeName, parseContacts } from './contacts'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  fromPicked,
+  markDuplicates,
+  normalizeName,
+  parseContacts,
+  pickContacts,
+  pickerSupport,
+} from './contacts'
 
 const names = (text, opts) => parseContacts(text, opts).map((c) => c.name)
 
@@ -170,3 +177,109 @@ describe('normalizeName', () => {
   })
 })
 
+afterEach(() => vi.unstubAllGlobals())
+
+describe('markDuplicates', () => {
+  const existing = [{ name: 'Maya Okonkwo' }, { name: 'Sam Okafor' }]
+
+  it('flags and unchecks someone already on the list', () => {
+    const [c] = markDuplicates(parseContacts('Maya Okonkwo'), existing)
+    expect(c.note).toBe('duplicate')
+    expect(c.include).toBe(false)
+  })
+
+  it('ignores case and spacing when matching', () => {
+    const [c] = markDuplicates(parseContacts('  maya   okonkwo '), existing)
+    expect(c.note).toBe('duplicate')
+  })
+
+  it('leaves someone new alone', () => {
+    const [c] = markDuplicates(parseContacts('Ana Ruiz'), existing)
+    expect(c.note).toBeNull()
+    expect(c.include).toBe(true)
+  })
+
+  it('takes duplicate over unlikely when a row is both', () => {
+    const long = 'x'.repeat(61)
+    const [c] = markDuplicates(parseContacts(long), [{ name: long }])
+    expect(c.note).toBe('duplicate')
+  })
+
+  it('clears the flag when a renamed row is no longer a duplicate', () => {
+    const flagged = markDuplicates(parseContacts('Maya Okonkwo'), existing)
+    const renamed = flagged.map((c) => ({ ...c, name: 'Maya Adeyemi' }))
+    expect(markDuplicates(renamed, existing)[0].note).toBeNull()
+  })
+
+  it('copes with no existing friends', () => {
+    expect(markDuplicates(parseContacts('Maya'), [])[0].note).toBeNull()
+    expect(markDuplicates(parseContacts('Maya'), undefined)[0].note).toBeNull()
+  })
+})
+
+describe('fromPicked', () => {
+  it('takes the first name and the first number', () => {
+    const [c] = fromPicked([{ name: ['Maya Okonkwo', 'M.O.'], tel: ['+1 555 010 1234', '+1 555 000'] }])
+    expect(c.name).toBe('Maya Okonkwo')
+    expect(c.phone).toBe('+1 555 010 1234')
+  })
+
+  it('handles a contact with no number', () => {
+    expect(fromPicked([{ name: ['Ana Ruiz'] }])[0].phone).toBeNull()
+  })
+
+  it('skips a contact with no usable name', () => {
+    expect(fromPicked([{ tel: ['+1 555 010 1234'] }, { name: [''] }, { name: ['Ana'] }])).toHaveLength(1)
+  })
+
+  it('applies the given category', () => {
+    expect(fromPicked([{ name: ['Ana'] }], { category: 'mentor' })[0].category).toBe('mentor')
+  })
+
+  it('collapses duplicates the picker returned twice', () => {
+    expect(fromPicked([{ name: ['Ana'] }, { name: ['ana'] }])).toHaveLength(1)
+  })
+
+  it('copes with nothing picked', () => {
+    expect(fromPicked([])).toEqual([])
+    expect(fromPicked(undefined)).toEqual([])
+  })
+})
+
+describe('pickerSupport', () => {
+  it('is supported when the API is present', () => {
+    vi.stubGlobal('navigator', { contacts: { select: () => {} }, userAgent: '' })
+    expect(pickerSupport().state).toBe('supported')
+  })
+
+  it('needs the flag on iOS when the API is missing', () => {
+    vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0)' })
+    expect(pickerSupport().state).toBe('needs-flag')
+  })
+
+  it('is simply unsupported off iOS', () => {
+    vi.stubGlobal('navigator', { userAgent: 'Mozilla/5.0 (Windows NT 10.0)', platform: 'Win32' })
+    expect(pickerSupport().state).toBe('unsupported')
+  })
+})
+
+describe('pickContacts', () => {
+  it('asks for names and numbers, allowing several', async () => {
+    const select = vi.fn().mockResolvedValue([{ name: ['Ana Ruiz'], tel: ['+1 555 010 1234'] }])
+    vi.stubGlobal('navigator', { contacts: { select }, userAgent: '' })
+
+    const out = await pickContacts()
+    expect(select).toHaveBeenCalledWith(['name', 'tel'], { multiple: true })
+    expect(out[0].name).toBe('Ana Ruiz')
+  })
+
+  it('returns nothing when the picker is cancelled', async () => {
+    vi.stubGlobal('navigator', { contacts: { select: vi.fn().mockResolvedValue([]) }, userAgent: '' })
+    expect(await pickContacts()).toEqual([])
+  })
+
+  it('throws when there is no picker', async () => {
+    vi.stubGlobal('navigator', { userAgent: '' })
+    await expect(pickContacts()).rejects.toThrow()
+  })
+})

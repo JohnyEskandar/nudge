@@ -9,6 +9,8 @@
  * without being shown.
  */
 
+import { isIOS } from './device'
+
 /** Enough digits that a house number or a year cannot pass for a phone. */
 const MIN_PHONE_DIGITS = 7
 const PHONE_RE = /\+?[(\d][\d\s().-]{5,}\d/g
@@ -141,4 +143,61 @@ export function parseContacts(text, { category = 'friend' } = {}) {
     if (name) out.push(candidate(name, phone, category))
   }
   return dedupeAndCap(out)
+}
+
+/**
+ * Marks candidates who are already on the list, so importing twice doesn't quietly
+ * create a second Maya. Duplicates arrive unchecked but visible — silently removing
+ * them would leave someone wondering which of their names went missing.
+ *
+ * Re-run after a name is edited: a row renamed out of a collision loses the flag. Its
+ * checkbox is left as the user last set it rather than being helpfully re-ticked.
+ */
+export function markDuplicates(candidates, existingFriends) {
+  const taken = new Set((existingFriends ?? []).map((f) => normalizeName(f.name)))
+
+  return candidates.map((c) => {
+    const isDuplicate = taken.has(normalizeName(c.name))
+    if (isDuplicate) return { ...c, note: 'duplicate', include: false }
+    if (c.note === 'duplicate') {
+      return { ...c, note: isUnlikelyName(c.name) ? 'unlikely' : null }
+    }
+    return c
+  })
+}
+
+/**
+ * The Contact Picker's output in the same shape the parser produces, so the review list
+ * and the insert never learn where a candidate came from. Its properties are arrays —
+ * a person can have several names and several numbers — and we take the first of each.
+ */
+export function fromPicked(picked, { category = 'friend' } = {}) {
+  const out = []
+  for (const contact of picked ?? []) {
+    const name = cleanName(String(contact?.name?.[0] ?? ''))
+    if (!name) continue
+    const tel = contact?.tel?.[0]
+    out.push(candidate(name, tel ? String(tel).trim().replace(/\s+/g, ' ') : null, category))
+  }
+  return dedupeAndCap(out)
+}
+
+/**
+ * Whether this device can open a contact picker, in the same shape as pushSupport().
+ *
+ * 'needs-flag' is iOS specific: Safari ships the Contact Picker behind an off-by-default
+ * Feature Flag, so the API's absence there means "not turned on yet", which is a
+ * different thing to say than "your browser can't do this". Note there is no
+ * install-state branch — unlike push, a tab and a home-screen app behave the same here.
+ */
+export function pickerSupport() {
+  if (navigator.contacts?.select) return { state: 'supported' }
+  return isIOS() ? { state: 'needs-flag' } : { state: 'unsupported' }
+}
+
+/** Opens the native picker. Only call this from a user gesture — the API requires one. */
+export async function pickContacts({ category = 'friend' } = {}) {
+  if (!navigator.contacts?.select) throw new Error('No contact picker on this device.')
+  const picked = await navigator.contacts.select(['name', 'tel'], { multiple: true })
+  return fromPicked(picked, { category })
 }
