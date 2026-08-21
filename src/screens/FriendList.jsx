@@ -21,6 +21,14 @@ const TODAY_LIMIT = 3
 /** A close birthday is a reason to reach out even when nothing is overdue. */
 const birthdaySoon = (f) => f.birthday_in_days != null && f.birthday_in_days <= 3
 
+/**
+ * Someone turned the Safari flag on and came back. The flag only takes effect after a
+ * force-quit, and a force-quit always lands on Today, so Today is the only screen that
+ * can ever pick this thread up again — which is the entire reason the pending key exists.
+ */
+const pickerJustArrived = () =>
+  localStorage.getItem(PICKER_PENDING_KEY) === '1' && pickerSupport().state === 'supported'
+
 /** listFriends sorts most-overdue-first, so the nearest of the not-yet-due leads. */
 function nextUp(upcoming) {
   const soonest = upcoming[0]
@@ -54,11 +62,20 @@ export default function FriendList() {
 
   // An empty list teaches nobody anything. A signed-in user with nobody on it hasn't
   // started yet, so send them through the first run — unless they chose to skip it.
+  //
+  // It stands down for a picker waiting to be acknowledged, because those two are on a
+  // collision course: "Add several at once" is offered *inside* onboarding, so someone
+  // can reach the walkthrough having added nobody, and the force-quit it asks for lands
+  // them here with zero friends. Redirecting would bounce them off the only screen that
+  // reads the pending key, and the switch they just went and turned on would never be
+  // mentioned again. Acknowledging the notice clears the key and flips pickerReady —
+  // hence the dependency — so the redirect resumes on the very next render.
   useEffect(() => {
+    if (pickerJustArrived()) return
     if (friends?.length === 0 && localStorage.getItem(ONBOARDED_KEY) !== '1') {
       navigate('/welcome', { replace: true })
     }
-  }, [friends, navigate])
+  }, [friends, navigate, pickerReady])
 
   /**
    * Turning the Safari flag on means quitting the app, which loses the screen that was
@@ -66,16 +83,14 @@ export default function FriendList() {
    * to no acknowledgement at all and have to remember why they went to Settings.
    */
   useEffect(() => {
-    if (localStorage.getItem(PICKER_PENDING_KEY) !== '1') return
-    if (pickerSupport().state !== 'supported') return
-    setPickerReady(true)
+    if (pickerJustArrived()) setPickerReady(true)
   }, [])
 
   /**
    * Cleared on the tap, not on the render. Today can be unmounted out from under this
-   * notice — the onboarding redirect does exactly that for a new user with nobody on
-   * their list — and clearing on render would burn the one signal we have that someone
-   * went and turned the flag on.
+   * notice — any navigation away does it — and clearing on render would burn the one
+   * signal we have that someone went and turned the flag on. It is also what lets the
+   * onboarding redirect above through again.
    */
   function acknowledgePicker(then) {
     localStorage.removeItem(PICKER_PENDING_KEY)
