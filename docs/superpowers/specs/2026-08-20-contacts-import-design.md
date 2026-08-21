@@ -84,7 +84,7 @@ third source feeding the same review-and-insert path rather than a second import
 | `src/lib/api.js` | edit | Add `addFriends(rows)` |
 | `src/screens/Onboarding.jsx` | edit | Link to import; seed `added` from `listFriends()` on mount |
 | `src/screens/People.jsx` | edit | Link to import |
-| `src/screens/FriendList.jsx` | edit | Link to import from the empty state |
+| `src/screens/FriendList.jsx` | edit | Link to import from the empty state; "picker is ready" notice |
 | `src/App.jsx` | edit | `/import` route |
 | `scripts/verify-import.mjs` | new | End-to-end Playwright check against the real database |
 | `package.json` | edit | `vitest` dev dependency, `"test": "vitest run"` |
@@ -203,19 +203,80 @@ The import button is disabled when no row is checked, and names the count:
 | State | When | UI |
 | --- | --- | --- |
 | `'supported'` | `navigator.contacts?.select` exists | Opens the native multi-select; results join the review list |
-| `'needs-flag'` | Missing, and `isIOS()` | The Feature Flags walkthrough plus **Check again** |
+| `'needs-flag'` | Missing, and `isIOS()` | The Feature Flags walkthrough |
 | `'unsupported'` | Missing, not iOS | Says plainly that no setting enables this here; points at paste |
 
 The "Choose from my contacts" button is **always visible**, so the option is
 discoverable; the branch happens on tap.
 
-The `'needs-flag'` walkthrough gives the path *Settings → Apps → Safari → Advanced →
-Feature Flags → Contact Picker API*, then "fully quit and reopen Nudge". **Check again**
-re-tests `pickerSupport()`; if it is still missing it says to make sure Nudge was fully
-closed, not just backgrounded.
+**No install branch.** `PushOptIn` must separate iOS-in-a-tab from iOS-installed because
+`PushManager` genuinely does not exist in a tab. The Contact Picker has no such rule —
+with the flag on, a tab and a home-screen app behave the same. One state fewer than the
+component it is modelled on.
 
-Every state names the flag as experimental and states that paste works right now with
-no setup. No state traps someone in a settings detour.
+The walkthrough renders inline in a `.notice` on `/import`, never full-screen: the paste
+box stays visible beside it, which is the whole argument that none of this is required.
+
+### State A — the instructions
+
+> **Picking from your contacts needs one switch turned on.**
+>
+> Apple keeps the contact picker behind an experimental switch in Safari's settings, so
+> it's off until you turn it on. It only affects Safari, and you can turn it back off
+> whenever you like.
+>
+> 1. Open **Settings → Apps → Safari**
+> 2. Tap **Advanced → Feature Flags**
+> 3. Find **Contact Picker API** and turn it on
+> 4. Come back, then fully close Nudge — swipe it away in the app switcher — and open it
+>    again
+>
+> You don't have to do any of this. Pasting a list of names works right now and ends up
+> in the same place.
+>
+> `[ I've done this — check again ]` `[ Not now ]`
+
+The path is confirmed against current iOS. Step 4 is the one people skip, so it is
+spelled out rather than implied. The closing paragraph is load-bearing: without it the
+block reads as a wall in front of the feature rather than an optional shortcut.
+
+Tone is "experimental, and reversible" — no stronger caution. Enabling this one switch
+exposes a single API and degrades nothing else, so Apple's general developers-only
+framing of Feature Flags would misrepresent the specific risk here and cost people who
+would otherwise finish.
+
+### State B — checked again, still missing
+
+`navigator.contacts` cannot say *why* it is absent, so the copy names both causes instead
+of guessing:
+
+> Still not there. It's usually one of two things: the **Contact Picker API** switch
+> didn't stay on, or Nudge was only backgrounded rather than fully closed. Swipe it away
+> in the app switcher and open it fresh.
+
+### State C — available
+
+Opens the native picker immediately. No confirmation screen: they asked to pick
+contacts, they get the picker.
+
+### Closing the restart loop
+
+Step 4 is unavoidable — a flag cannot reach a running JS context — but it also breaks the
+loop, because quitting and reopening lands on Today, not `/import`. The walkthrough is
+gone and the person has to remember why they went to Settings. It also means **Check
+again** is only ever tapped by someone who came back *without* quitting; it earns its
+place as a diagnostic for the commonest mistake, but it cannot be what closes the loop,
+since anyone who followed the instructions correctly never sees it.
+
+So: set `nudge.picker.pending` in `localStorage` when the walkthrough is shown. On boot,
+if that key is set **and** `navigator.contacts` now exists, clear it and show a one-line
+notice on Today — "Your contacts picker is ready" with a button through to `/import`. It
+cannot auto-open the picker, since `select()` requires a user gesture, but it puts them
+one tap away instead of relying on memory. Same pattern as `ONBOARDED_KEY` and
+`PushOptIn`'s `DISMISS_KEY`.
+
+The key is also cleared when a picker import completes, so the notice cannot reappear
+for someone who already used it.
 
 ## Insert
 
