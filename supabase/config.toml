@@ -7,3 +7,8 @@ verify_jwt = true
 
 [functions.delete-account]
 verify_jwt = true
+
+[functions.announce]
+# Same shape as daily-nudge: JWT verification at the gateway, plus its own check that
+# the bearer is the service key. Nothing schedules this one — it only fires by hand.
+verify_jwt = true
