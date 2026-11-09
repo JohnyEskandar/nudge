@@ -402,29 +402,6 @@ export async function logCatchUp(friendId, { date, note }) {
   )
 }
 
-/**
- * Recorded when you send someone a message or place a call, so reaching out and writing
- * it down are the same gesture — there is no separate bookkeeping step to forget.
- *
- * It's a proxy: we know the message went to the share sheet and the call went to the
- * dialler, not that either landed. Close enough, and the entry can be removed from the
- * history like any other if it didn't.
- */
-export async function logContact(friendId, kind) {
-  return unwrap(
-    await supabase
-      .from('interactions')
-      .insert({
-        friend_id: friendId,
-        date: new Date().toISOString().slice(0, 10),
-        kind, // 'reached_out' | 'called'
-        note: null,
-      })
-      .select()
-      .single(),
-  )
-}
-
 export async function deleteInteraction(id) {
   const { error } = await supabase.from('interactions').delete().eq('id', id)
   if (error) throw new Error(error.message)

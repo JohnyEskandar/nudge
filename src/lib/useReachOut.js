@@ -1,61 +1,94 @@
-import { useState } from 'react'
-import { logContact } from './api'
+import { useRef, useState } from 'react'
+import { recordAnswer } from './api'
+import { logEvent } from './events'
 import { composeMessage, firstName, shareMessage } from './share'
 
 /**
- * The app's core loop, in one place: the message goes out (or the phone dials) and the
- * contact records itself, so there is nothing left to remember to write down.
+ * The reach-out loop, in one place for Today and the person's page.
  *
- * Both screens use this — the Today list, where several people are on screen at once and
- * each needs its own busy state, and the detail screen, where there is only ever one.
- * Keeping it here is what stops the two drifting apart.
+ * Opening the share sheet, copying a message or tapping Call proves nothing: the sheet can
+ * be dismissed after picking an app, a copied message may never be pasted, a call may not
+ * connect. So none of them log a contact any more. Each is noted as an event, and then the
+ * app asks "Did it go through?" — only a yes is recorded, through the same record_answer
+ * every other answer uses.
  *
- * `onDone` is called after a successful contact so the caller can reload; the friend
- * drops out of "due" because the cadence has genuinely reset.
+ * `onDone` runs after a yes so the caller can reload; the person drops out of "due"
+ * because the cadence has genuinely reset.
  */
 export function useReachOut(onDone) {
   const [busyId, setBusyId] = useState(null)
-  const [sent, setSent] = useState(null) // { id, how: 'shared' | 'copied' | 'called' }
+  const [pending, setPending] = useState(null) // { id, how: 'shared' | 'copied' | 'called' }
+  const [done, setDone] = useState(null) // { id, yes }
   const [error, setError] = useState(null)
+  const inFlight = useRef(false)
 
   async function reachOut(friend, style) {
+    // One reach-out at a time: a double tap must not open two sheets or log two calls.
+    if (inFlight.current || pending?.id === friend.id) return
+    inFlight.current = true
     setBusyId(friend.id)
     setError(null)
+    setDone(null)
     try {
       if (style === 'call') {
         if (!friend.phone) {
-          // Nothing to dial. Rather than a dead end, say so — they can add a number on
-          // the friend's page, or log the call they're about to make.
-          setError(`No number for ${firstName(friend.name)} yet — add one, or log the call.`)
-          setBusyId(null)
+          setError(`No number for ${firstName(friend.name)} yet. Add one, or log the call.`)
           return
         }
-        // The <a href="tel:"> is doing the dialling; this only records it.
-        await logContact(friend.id, 'called')
-        setSent({ id: friend.id, how: 'called' })
+        // The <a href="tel:"> is doing the dialling; this only notes the tap.
+        logEvent('call_tapped', { friendId: friend.id })
+        setPending({ id: friend.id, how: 'called' })
       } else {
-        const how = await shareMessage(composeMessage(friend.name, style))
-        if (how === 'cancelled') {
-          setBusyId(null)
-          return
-        }
-        await logContact(friend.id, 'reached_out')
-        setSent({ id: friend.id, how })
+        const how = await shareMessage(composeMessage(friend.name, style, { category: friend.category }))
+        if (how === 'cancelled') return
+        logEvent('share_opened', { friendId: friend.id, props: { how, style } })
+        setPending({ id: friend.id, how })
       }
-      await onDone?.()
     } catch (err) {
       setError(err.message)
+    } finally {
+      inFlight.current = false
+      setBusyId(null)
     }
-    setBusyId(null)
   }
 
-  return { reachOut, busyId, sent, error, setError }
+  /** The answer to "Did it go through?". */
+  async function confirm(friend, yes) {
+    if (inFlight.current) return
+    const how = pending?.how
+    inFlight.current = true
+    setBusyId(friend.id)
+    setError(null)
+    try {
+      await recordAnswer(friend.id, yes ? (how === 'called' ? 'called' : 'texted') : 'not_yet', {
+        source: 'reach_out',
+      })
+      setPending(null)
+      setDone({ id: friend.id, yes })
+      if (yes) await onDone?.()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      inFlight.current = false
+      setBusyId(null)
+    }
+  }
+
+  return { reachOut, confirm, busyId, pending, done, error, setError }
 }
 
-/** What to say after a contact went out. */
-export function sentMessage(how, name) {
+/** The question after the share sheet, the clipboard or the dialler. */
+export function pendingQuestion(how, name) {
   const first = firstName(name)
-  if (how === 'copied') return 'Message copied — paste it to them. Logged as reached out today.'
-  if (how === 'called') return `Logged — you called ${first} today.`
-  return `Logged — you reached out to ${first} today.`
+  if (how === 'called') return `Did you get through to ${first}?`
+  if (how === 'copied') return `Message copied. Paste it to ${first}, then come back: did it go through?`
+  return `Did your message to ${first} go through?`
+}
+
+/** What to say after the answer. */
+export function doneMessage(yes, name) {
+  const first = firstName(name)
+  return yes
+    ? `Noted. ${first} can rest for a while.`
+    : `No problem. ${first} stays on your list.`
 }

@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { listFriends, snoozeFriend } from '../lib/api'
+import { listFriends, listRecentItems, snoozeFriend } from '../lib/api'
 import { birthdayLabel, dueLabel, excerpt, lastContactLabel } from '../lib/format'
 import { firstName } from '../lib/share'
-import { sentMessage, useReachOut } from '../lib/useReachOut'
+import { useReachOut } from '../lib/useReachOut'
+import { localDate } from '../lib/events'
+import { pendingConfirm } from '../lib/confirm'
+import { recallFor } from '../lib/recall'
 import ReachOutAction from '../components/ReachOutAction'
+import ReachOutPrompt from '../components/ReachOutPrompt'
+import AlreadyDidIt from '../components/AlreadyDidIt'
+import ConfirmCard from '../components/ConfirmCard'
+import RecallCard from '../components/RecallCard'
 import SnoozeActions from '../components/SnoozeActions'
 import PushOptIn from '../components/PushOptIn'
 import { ONBOARDED_KEY } from './Onboarding'
@@ -44,13 +51,17 @@ function nextUp(upcoming) {
  */
 export default function FriendList() {
   const [friends, setFriends] = useState(null)
+  const [items, setItems] = useState([])
   const [loadError, setLoadError] = useState(null)
   const [pickerReady, setPickerReady] = useState(false)
   const navigate = useNavigate()
 
   const load = useCallback(async () => {
     try {
-      setFriends(await listFriends())
+      // The nudge record is a nicety on this screen; Today must still load without it.
+      const [f, i] = await Promise.all([listFriends(), listRecentItems().catch(() => [])])
+      setFriends(f)
+      setItems(i)
     } catch (e) {
       setLoadError(e.message)
     }
@@ -103,7 +114,7 @@ export default function FriendList() {
     setPickerReady(false)
   }
 
-  const { reachOut, busyId, sent, error, setError } = useReachOut(load)
+  const { reachOut, confirm, busyId, pending, done, error, setError } = useReachOut(load)
 
   async function onSnooze(friend, days) {
     setError(null)
@@ -115,9 +126,13 @@ export default function FriendList() {
     }
   }
 
-  // Overdue is a fact; a birthday is a reason. Either earns a place on Today, and
-  // birthdays lead — they expire, overdue-ness keeps.
-  const allDue = (friends?.filter((f) => f.days_overdue >= 0 || birthdaySoon(f)) ?? []).sort(
+  // Due is a fact; a birthday is a reason. Either earns a place on Today, and birthdays
+  // lead: they expire, being due keeps. Someone held out of this week's nudges (a quarter
+  // of new nudges, to measure what a nudge changes) stays off Today too, or the app
+  // would still be nudging them.
+  const allDue = (
+    friends?.filter((f) => !f.held_out && (f.days_overdue >= 0 || birthdaySoon(f))) ?? []
+  ).sort(
     (a, b) => {
       if (birthdaySoon(a) !== birthdaySoon(b)) return birthdaySoon(a) ? -1 : 1
       if (birthdaySoon(a)) return a.birthday_in_days - b.birthday_in_days
@@ -126,7 +141,12 @@ export default function FriendList() {
   )
   const due = allDue.slice(0, TODAY_LIMIT)
   const alsoWaiting = allDue.length - due.length
-  const upcoming = friends?.filter((f) => !allDue.includes(f)) ?? []
+  // Only people not yet due, so "next up" never names someone being held out.
+  const upcoming = friends?.filter((f) => f.days_overdue != null && f.days_overdue < 0) ?? []
+
+  const today = localDate()
+  const recall = friends ? recallFor(items, friends, today) : null
+  const confirmable = friends && !recall ? pendingConfirm(items, friends, today) : null
 
   return (
     <>
@@ -137,8 +157,8 @@ export default function FriendList() {
             {friends === null
               ? ' '
               : allDue.length > 0
-                ? `${allDue.length} ${allDue.length === 1 ? 'person' : 'people'} to reach out to`
-                : 'Nobody’s overdue. Enjoy the quiet.'}
+                ? 'Who’s up for a hello'
+                : 'Nobody’s up today. Enjoy the quiet.'}
           </p>
         </div>
         <button className="btn-quiet" onClick={() => navigate('/settings')}>
@@ -168,6 +188,11 @@ export default function FriendList() {
       {(loadError || error) && <div className="error">{loadError || error}</div>}
 
       {friends === null && <div className="loading">Loading…</div>}
+
+      {recall && <RecallCard key={recall.week} recall={recall} onDone={load} />}
+      {confirmable && (
+        <ConfirmCard key={confirmable.item.id} pending={confirmable} onDone={load} />
+      )}
 
       {friends?.length === 0 && (
         <div className="empty">
@@ -203,8 +228,14 @@ export default function FriendList() {
 
           <div className="spacer" />
 
-          {sent?.id === f.id ? (
-            <div className="notice">{sentMessage(sent.how, f.name)}</div>
+          {pending?.id === f.id || done?.id === f.id ? (
+            <ReachOutPrompt
+              friend={f}
+              pending={pending}
+              done={done}
+              busy={busyId === f.id}
+              onConfirm={confirm}
+            />
           ) : (
             <>
               <ReachOutAction
@@ -215,13 +246,14 @@ export default function FriendList() {
                 onAct={(style) => reachOut(f, style)}
               />
 
-              {f.days_overdue >= 0 && (
-                <SnoozeActions
-                  cadenceDays={f.cadence_days}
-                  busy={busyId === f.id}
-                  onSnooze={(days) => onSnooze(f, days)}
-                />
-              )}
+              <AlreadyDidIt friend={f} source="today" onDone={load} />
+
+              {/* Birthdays too: "not this week" has to be sayable about anyone on Today. */}
+              <SnoozeActions
+                cadenceDays={f.cadence_days}
+                busy={busyId === f.id}
+                onSnooze={(days) => onSnooze(f, days)}
+              />
             </>
           )}
         </div>
@@ -231,10 +263,10 @@ export default function FriendList() {
       {friends?.length > 0 && (
         <Link className="see-all" to="/people">
           {alsoWaiting > 0
-            ? `${alsoWaiting} more ${alsoWaiting === 1 ? 'person is' : 'people are'} waiting`
+            ? 'Everyone else'
             : upcoming.length > 0 && due.length > 0
-              ? `All ${friends.length} people — next up ${nextUp(upcoming)}`
-              : `All ${friends.length} people`}
+              ? `All your people · next up ${nextUp(upcoming)}`
+              : 'All your people'}
           <span aria-hidden="true"> →</span>
         </Link>
       )}

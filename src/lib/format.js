@@ -1,13 +1,14 @@
-/** Human phrasing for the overdue math, shared by the list and detail screens. */
+/**
+ * Human phrasing for the due maths, shared by the list and detail screens. Never how
+ * late you are: a count of days past due is a guilt meter, and it is the same nudge
+ * whether it has been one day or forty. null means paused ("we see each other all the
+ * time").
+ */
 export function dueLabel(daysOverdue) {
-  if (daysOverdue > 0) {
-    return { text: `${plural(daysOverdue, 'day')} overdue`, due: true }
-  }
-  if (daysOverdue === 0) {
-    return { text: 'Due today', due: true }
-  }
-  const inDays = Math.abs(daysOverdue)
-  return { text: `In ${plural(inDays, 'day')}`, due: false }
+  if (daysOverdue == null) return { text: 'No nudges', due: false }
+  if (daysOverdue >= 0) return { text: 'Time to say hi', due: true }
+  if (daysOverdue === -1) return { text: 'Tomorrow', due: false }
+  return { text: `In ${plural(-daysOverdue, 'day')}`, due: false }
 }
 
 export function lastContactLabel(daysSince, hasInteraction) {
