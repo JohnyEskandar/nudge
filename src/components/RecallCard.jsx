@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { recordAnswer } from '../lib/api'
+import { recordAnswers } from '../lib/api'
 import { logEvent } from '../lib/events'
 
 /**
@@ -30,12 +30,14 @@ export default function RecallCard({ recall, onDone }) {
     setBusy(true)
     setError(null)
     try {
-      for (const { friend, itemId } of recall.people) {
-        await recordAnswer(friend.id, ticked.has(friend.id) ? 'talked' : 'no', {
-          source: 'recall',
+      await recordAnswers(
+        recall.people.map(({ friend, itemId }) => ({
+          friendId: friend.id,
+          answer: ticked.has(friend.id) ? 'talked' : 'no',
           itemId,
-        })
-      }
+        })),
+        { source: 'recall' },
+      )
       setFinished(true)
       await onDone?.()
     } catch (err) {

@@ -74,6 +74,10 @@ create table public.nudge_items (
 );
 create index nudge_items_user_date_idx on public.nudge_items (user_id, local_date desc);
 create index nudge_items_friend_idx on public.nudge_items (friend_id);
+-- One push a day, enforced where two overlapping runs (the cron and a manual invoke)
+-- cannot both get past it: the second run's insert fails, and it pushes nothing.
+create unique index nudge_items_one_push_a_day
+  on public.nudge_items (user_id, local_date) where assignment = 'nudged';
 
 create table public.nudge_sends (
   id                uuid primary key default gen_random_uuid(),
@@ -359,7 +363,47 @@ begin
 end;
 $$;
 
+/*
+ * Several answers at once, all or nothing: the Sunday recall. Recorded one by one, a
+ * failure halfway would leave some people answered, and the recall (shown until anything
+ * in the week is answered) would never come back for the rest.
+ *
+ * p_answers: [{ friend_id, answer, item_id }]
+ */
+create or replace function public.record_answers(
+  p_answers     jsonb,
+  p_source      text,
+  p_local_date  date default null,
+  p_tz          text default null,
+  p_platform    text default null,
+  p_app_version text default null
+)
+returns void
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  a jsonb;
+begin
+  for a in select * from jsonb_array_elements(p_answers) loop
+    perform public.record_answer(
+      (a ->> 'friend_id')::uuid,
+      a ->> 'answer',
+      p_source,
+      (a ->> 'item_id')::uuid,
+      p_local_date,
+      p_tz,
+      p_platform,
+      p_app_version
+    );
+  end loop;
+end;
+$$;
+
 revoke all on function public.apply_schedule(jsonb) from public, anon;
+revoke all on function public.record_answers(jsonb, text, date, text, text, text) from public, anon;
+grant execute on function public.record_answers(jsonb, text, date, text, text, text) to authenticated;
 revoke all on function public.record_answer(uuid, text, text, uuid, date, text, text, text)
   from public, anon;
 grant execute on function public.apply_schedule(jsonb) to authenticated;

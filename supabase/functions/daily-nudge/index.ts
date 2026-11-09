@@ -107,7 +107,8 @@ Deno.serve(async (req) => {
   let friends: (FriendRow & { user_id: string })[]
   let episodes: EpisodeRow[]
   let items: ItemRow[]
-  let settings: { user_id: string; frequency: Frequency }[]
+  type SettingsRow = { user_id: string; frequency: Frequency; start_nudging_on: string | null }
+  let settings: SettingsRow[]
   try {
     ;[friends, episodes, items, settings] = await Promise.all([
       readAll<FriendRow & { user_id: string }>(() =>
@@ -139,7 +140,9 @@ Deno.serve(async (req) => {
             .order('id'),
         ),
       ),
-      readAll<{ user_id: string; frequency: Frequency }>(() => scoped(admin.from('user_settings').select('user_id, frequency').order('user_id'))),
+      readAll<SettingsRow>(() =>
+        scoped(admin.from('user_settings').select('user_id, frequency, start_nudging_on').order('user_id')),
+      ),
     ])
   } catch (err) {
     return json({ error: String(err) }, 500)
@@ -148,19 +151,38 @@ Deno.serve(async (req) => {
   const friendsBy = groupBy(friends, (r) => r.user_id)
   const episodesBy = groupBy(episodes, (r) => r.user_id)
   const itemsBy = groupBy(items, (r) => r.user_id)
-  const frequencyOf = new Map(settings.map((s) => [s.user_id, s.frequency]))
+  const settingsOf = new Map(settings.map((s) => [s.user_id, s]))
   const users = new Set([...friendsBy.keys(), ...episodesBy.keys()])
 
   if (users.size === 0) {
     return json({ ok: true, users_considered: 0, sent: 0, message: 'nobody due' })
   }
 
-  const { data: subs, error: subErr } = await admin
-    .from('push_subscriptions')
-    .select('id, user_id, subscription')
-    .in('user_id', [...users])
-  if (subErr) return json({ error: subErr.message }, 500)
-  const subsBy = groupBy(subs ?? [], (r: { user_id: string }) => r.user_id)
+  // In chunks (a long `in` list overflows the URL) and pages (max_rows), so nobody is
+  // wrongly logged as having no device.
+  type SubRow = { id: string; user_id: string; subscription: unknown }
+  const subs: SubRow[] = []
+  try {
+    const all = [...users]
+    for (let i = 0; i < all.length; i += 100) {
+      const chunk = all.slice(i, i + 100)
+      subs.push(
+        ...(await readAll<SubRow>(() =>
+          admin.from('push_subscriptions').select('id, user_id, subscription').in('user_id', chunk).order('id'),
+        )),
+      )
+    }
+  } catch (err) {
+    return json({ error: String(err) }, 500)
+  }
+  const subsBy = groupBy(subs, (r) => r.user_id)
+
+  /** One row per attempt, written as it happens, so a crash mid-run loses at most one. */
+  async function logSend(row: SendRow) {
+    const { error } = await admin.from('nudge_sends').insert(row)
+    if (error) failures.push(`${row.user_id}: send log: ${error.message}`)
+    else counts.send_rows++
+  }
 
   const counts = {
     users_considered: users.size,
@@ -179,7 +201,8 @@ Deno.serve(async (req) => {
     const decision = decide(
       {
         today,
-        frequency: frequencyOf.get(userId) ?? DEFAULT_FREQUENCY,
+        frequency: settingsOf.get(userId)?.frequency ?? DEFAULT_FREQUENCY,
+        startOn: settingsOf.get(userId)?.start_nudging_on ?? null,
         friends: friendsBy.get(userId) ?? [],
         // A friend deleted mid-episode leaves friend_id null; the picker closes it.
         openEpisodes: (episodesBy.get(userId) ?? []).map((e) => ({ ...e, friend_id: e.friend_id ?? '' })),
@@ -211,6 +234,15 @@ Deno.serve(async (req) => {
         const { error } = await admin
           .from('nudge_items')
           .insert(decision.items.map((i) => ({ ...i, user_id: userId })))
+        if (error?.code === '23505') {
+          // Another run already pushed this user today (nudge_items_one_push_a_day).
+          // Undo the episodes this run opened, so nobody is left held out by a loser.
+          if (decision.newEpisodes.length) {
+            await admin.from('nudge_episodes').delete().in('id', decision.newEpisodes.map((e) => e.id))
+          }
+          counts.skipped.concurrent_run = (counts.skipped.concurrent_run ?? 0) + 1
+          continue
+        }
         if (error) throw new Error(`insert items: ${error.message}`)
       }
     } catch (err) {
@@ -232,10 +264,10 @@ Deno.serve(async (req) => {
       seed,
     })
 
-    const sends: SendRow[] = []
+    let delivered = false
     const devices = subsBy.get(userId) ?? []
     if (devices.length === 0) {
-      sends.push({ item_id: push.item_id, user_id: userId, subscription_host: null, status: 'no_device', http_status: null, error: null })
+      await logSend({ item_id: push.item_id, user_id: userId, subscription_host: null, status: 'no_device', http_status: null, error: null })
     }
 
     for (const row of devices) {
@@ -250,28 +282,25 @@ Deno.serve(async (req) => {
       try {
         const subscriber = appServer.subscribe(row.subscription as webpush.PushSubscription)
         await subscriber.pushTextMessage(JSON.stringify(payload), {})
-        sends.push({ item_id: push.item_id, user_id: userId, subscription_host: host, status: 'sent', http_status: 201, error: null })
+        await logSend({ item_id: push.item_id, user_id: userId, subscription_host: host, status: 'sent', http_status: 201, error: null })
         counts.sent++
+        delivered = true
       } catch (err) {
         const status = (err as { response?: Response }).response?.status ?? null
         // 410 Gone (or 404) means the browser threw this subscription away — the user
         // uninstalled or cleared data. Drop it so we stop trying forever.
         if (err instanceof webpush.PushMessageError && err.isGone()) {
-          sends.push({ item_id: push.item_id, user_id: userId, subscription_host: host, status: 'gone', http_status: status, error: null })
+          await logSend({ item_id: push.item_id, user_id: userId, subscription_host: host, status: 'gone', http_status: status, error: null })
           await admin.from('push_subscriptions').delete().eq('id', row.id)
           counts.pruned++
         } else {
-          sends.push({ item_id: push.item_id, user_id: userId, subscription_host: host, status: 'failed', http_status: status, error: String(err).slice(0, 500) })
+          await logSend({ item_id: push.item_id, user_id: userId, subscription_host: host, status: 'failed', http_status: status, error: String(err).slice(0, 500) })
           failures.push(`${userId}: ${String(err).slice(0, 200)}`)
         }
       }
     }
 
-    if (sends.some((s) => s.status === 'sent')) counts.users_notified++
-
-    const { error: logErr } = await admin.from('nudge_sends').insert(sends)
-    if (logErr) failures.push(`${userId}: send log: ${logErr.message}`)
-    else counts.send_rows += sends.length
+    if (delivered) counts.users_notified++
   }
 
   return json({ ok: true, today, ...counts, failures })

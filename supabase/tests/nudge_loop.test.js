@@ -220,6 +220,66 @@ describe('record_answer', () => {
   })
 })
 
+describe('record_answers (the recall, all or nothing)', () => {
+  async function item(friendId, daysAgo = 2) {
+    const { rows: [it] } = await db.query(
+      `insert into public.nudge_items (user_id, friend_id, reason, assignment, local_date)
+       values ($1, $2, 'overdue', 'nudged', current_date - $3::int) returning id`,
+      [ME, friendId, daysAgo],
+    )
+    return it.id
+  }
+  const submit = (answers) =>
+    asUser(db, ME, () =>
+      db.query(`select public.record_answers($1::jsonb, 'recall', current_date, 'UTC', 'ios-pwa', 'test')`, [
+        JSON.stringify(answers),
+      ]),
+    )
+
+  it('records every answer in one go', async () => {
+    const a = await addFriend(ME, { ageDays: 70 })
+    const b = await addFriend(ME, { ageDays: 70 })
+    const [ia, ib] = [await item(a, 2), await item(b, 3)]
+    await submit([
+      { friend_id: a, answer: 'talked', item_id: ia },
+      { friend_id: b, answer: 'no', item_id: ib },
+    ])
+    const { rows } = await db.query(`select recall_answer from public.nudge_items order by recall_answer`)
+    expect(rows.map((r) => r.recall_answer)).toEqual(['no', 'talked'])
+  })
+
+  it('records none of them when one fails', async () => {
+    const a = await addFriend(ME, { ageDays: 70 })
+    const theirs = await addFriend(OTHER, { ageDays: 70 })
+    const ia = await item(a)
+    await expect(
+      submit([
+        { friend_id: a, answer: 'talked', item_id: ia },
+        { friend_id: theirs, answer: 'no', item_id: null },
+      ]),
+    ).rejects.toThrow()
+    const { rows } = await db.query(`select recall_at from public.nudge_items where id = $1`, [ia])
+    expect(rows[0].recall_at).toBeNull()
+  })
+})
+
+describe('one push a day', () => {
+  it('refuses a second nudged item for the same user and day, but not a second holdout', async () => {
+    const a = await addFriend(ME, { ageDays: 70 })
+    const b = await addFriend(ME, { ageDays: 70 })
+    const insert = (friend, assignment) =>
+      db.query(
+        `insert into public.nudge_items (user_id, friend_id, reason, assignment, local_date)
+         values ($1, $2, 'overdue', $3, current_date)`,
+        [ME, friend, assignment],
+      )
+    await insert(a, 'holdout')
+    await insert(b, 'holdout')
+    await insert(a, 'nudged')
+    await expect(insert(b, 'nudged')).rejects.toThrow(/duplicate key/)
+  })
+})
+
 describe('row security', () => {
   it('lets a user log their own events but never read the log back', async () => {
     await asUser(db, ME, () =>

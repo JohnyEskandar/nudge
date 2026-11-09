@@ -184,6 +184,41 @@ describe('birthdays', () => {
     expect(d.push).toBeNull()
   })
 
+  it('does not push a birthday for someone being held out', () => {
+    const d = decide(
+      state({
+        friends: [friend({ id: 'bday', days_overdue: 3, birthday_in_days: 0 })],
+        openEpisodes: [
+          { id: 'e1', friend_id: 'bday', assignment: 'holdout', started_on: addDays(TODAY, -2), copy_variant: 'plain' },
+        ],
+      }),
+      deps(),
+    )
+    expect(d.push).toBeNull()
+  })
+
+  it('does not push a birthday for someone nudged in the last 7 days', () => {
+    const d = decide(
+      state({
+        friends: [friend({ id: 'bday', days_overdue: 3, birthday_in_days: 0 })],
+        recentItems: [nudgedItem('bday', addDays(TODAY, -1))],
+      }),
+      deps(),
+    )
+    expect(d.push).toBeNull()
+  })
+
+  it('stays quiet before the user\'s start date, birthdays included', () => {
+    const d = decide(
+      state({
+        startOn: addDays(TODAY, 10),
+        friends: [friend({ id: 'bday', days_overdue: -10, birthday_in_days: 0 })],
+      }),
+      deps(),
+    )
+    expect(d.push).toBeNull()
+  })
+
   it('respects a pause', () => {
     const d = decide(
       state({ friends: [friend({ id: 'bday', paused: true, days_overdue: null, birthday_in_days: 0 })] }),
@@ -284,7 +319,7 @@ describe('episodes and the holdout', () => {
   it('holds out a new episode on a draw under 0.25 and nudges the next person', () => {
     const d = decide(
       state({ friends: [friend({ id: 'a', days_overdue: 9 }), friend({ id: 'b', days_overdue: 1 })] }),
-      deps([0.1, 0.99, 0.3, 0.99]),
+      deps([0.1, 0.3]),
     )
     expect(d.newEpisodes.map((e) => [e.friend_id, e.assignment])).toEqual([
       ['a', 'holdout'],
@@ -299,11 +334,15 @@ describe('episodes and the holdout', () => {
     expect(d.push?.item_id).toBe(d.items[1].id)
   })
 
-  it('draws the copy variant per episode', () => {
-    const reason = decide(state({ friends: [friend({ id: 'a' })] }), deps([0.5, 0.2]))
-    expect(reason.newEpisodes[0].copy_variant).toBe('reason')
-    const plain = decide(state({ friends: [friend({ id: 'a' })] }), deps([0.5, 0.7]))
-    expect(plain.newEpisodes[0].copy_variant).toBe('plain')
+  it('records plain copy while there is no reason copy to test', () => {
+    const d = decide(state({ friends: [friend({ id: 'a' })] }), deps([0.5, 0.2]))
+    expect(d.newEpisodes[0].copy_variant).toBe('plain')
+  })
+
+  it('draws the copy variant per episode once the reason arm is on', () => {
+    const on = (r: number[]) => ({ ...deps(r), reasonArm: true })
+    expect(decide(state({ friends: [friend({ id: 'a' })] }), on([0.5, 0.2])).newEpisodes[0].copy_variant).toBe('reason')
+    expect(decide(state({ friends: [friend({ id: 'a' })] }), on([0.5, 0.7])).newEpisodes[0].copy_variant).toBe('plain')
   })
 
   it('records holdouts even when nobody is left to push', () => {

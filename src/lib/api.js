@@ -34,7 +34,8 @@ export async function listFriends() {
     await supabase
       .from('friend_overview')
       .select('*')
-      .order('days_overdue', { ascending: false })
+      // Paused people (null) last, not first.
+      .order('days_overdue', { ascending: false, nullsFirst: false })
       .order('name', { ascending: true }),
   )
 }
@@ -76,8 +77,8 @@ export async function addFriend({
       .single(),
   )
 
+  await scheduleOrUndo([friend], [{ friend, lastTalked }])
   if (birthday) await saveBirthday(friend.id, birthday)
-  await scheduleNew([{ friend, lastTalked }])
   logEvent('friend_added', { friendId: friend.id, props: { source, category, last_talked: lastTalked } })
   return friend
 }
@@ -116,11 +117,31 @@ export async function addFriends(rows, { lastTalked = null, source = 'import' } 
       .select(),
   )
 
-  await scheduleNew(friends.map((friend) => ({ friend, lastTalked })))
+  await scheduleOrUndo(friends, friends.map((friend) => ({ friend, lastTalked })))
   for (const f of friends) {
     logEvent('friend_added', { friendId: f.id, props: { source, category: f.category, last_talked: lastTalked } })
   }
   return friends
+}
+
+/**
+ * A person added without their schedule would come due on the old clock (months out, or
+ * everyone on one day), and a retry after an error would add them twice. So if the
+ * schedule can't be written, the add is undone and the error stands.
+ */
+async function scheduleOrUndo(friends, entries) {
+  try {
+    await scheduleNew(entries)
+  } catch (err) {
+    await supabase
+      .from('friends')
+      .delete()
+      .in(
+        'id',
+        friends.map((f) => f.id),
+      )
+    throw new Error(`Couldn’t add ${friends.length === 1 ? 'them' : 'them all'}: ${err.message}`)
+  }
 }
 
 /**
@@ -213,6 +234,20 @@ export async function recordAnswer(friendId, answer, { source, itemId = null }) 
     p_answer: answer,
     p_source: source,
     p_item_id: itemId,
+    p_local_date: ctx.local_date,
+    p_tz: ctx.tz,
+    p_platform: ctx.platform,
+    p_app_version: ctx.app_version,
+  })
+  if (error) throw new Error(error.message)
+}
+
+/** The Sunday recall's answers, recorded together or not at all. */
+export async function recordAnswers(answers, { source }) {
+  const ctx = eventContext()
+  const { error } = await supabase.rpc('record_answers', {
+    p_answers: answers.map((a) => ({ friend_id: a.friendId, answer: a.answer, item_id: a.itemId })),
+    p_source: source,
     p_local_date: ctx.local_date,
     p_tz: ctx.tz,
     p_platform: ctx.platform,
@@ -429,11 +464,15 @@ export async function snoozeFriend(friendId, days) {
   )
 }
 
+/**
+ * A staggered first due date was worked out from the old cadence, so it goes too: until
+ * the first contact, the person is due from their seeded clock plus the new cadence.
+ */
 export async function setCadence(friendId, cadenceDays) {
   return unwrap(
     await supabase
       .from('reminder_settings')
-      .update({ cadence_days: cadenceDays })
+      .update({ cadence_days: cadenceDays, first_due_on: null })
       .eq('friend_id', friendId)
       .select()
       .single(),

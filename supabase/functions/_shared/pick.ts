@@ -55,6 +55,8 @@ export type UserState = {
   openEpisodes: OpenEpisode[]
   /** Items from at least the last COOLDOWN_DAYS days. */
   recentItems: PastItem[]
+  /** The user's "start nudging me on" date; nothing is pushed before it. */
+  startOn?: string | null
 }
 
 export type NewEpisode = OpenEpisode
@@ -73,10 +75,19 @@ export type Decision = {
   newEpisodes: NewEpisode[]
   items: NewItem[]
   push: { item_id: string; friend: FriendRow; reason: Reason; copy_variant: CopyVariant } | null
-  skipped: null | 'already_today' | 'frequency' | 'nobody_eligible'
+  skipped: null | 'already_today' | 'not_started' | 'frequency' | 'nobody_eligible'
 }
 
-export type Deps = { random: () => number; newId: () => string }
+export type Deps = {
+  random: () => number
+  newId: () => string
+  /**
+   * Draw a copy variant per episode. Off until there is reason copy to send (founder
+   * decision, Nov 8): recording 'reason' for pushes that said the plain thing would make
+   * the H2 comparison meaningless.
+   */
+  reasonArm?: boolean
+}
 
 const isDue = (f: FriendRow) => !f.paused && f.days_overdue !== null && f.days_overdue >= 0
 
@@ -114,11 +125,25 @@ export function decide(s: UserState, deps: Deps): Decision {
     d.skipped = 'already_today'
     return d
   }
+  if (s.startOn && s.startOn > s.today) {
+    d.skipped = 'not_started'
+    return d
+  }
 
-  // ---- a birthday is once, on the day, and outranks the user's pace
+  const rested = (f: FriendRow) => {
+    const last = lastNudged.get(f.id)
+    return !last || daysBetween(last, s.today) >= COOLDOWN_DAYS
+  }
+  const heldOut = (f: FriendRow) => open.get(f.id)?.assignment === 'holdout'
+
+  // ---- a birthday is once, on the day, and outranks the user's pace (but not the
+  // weekly rest, and never a holdout)
   const snoozedPast = (f: FriendRow) => f.snoozed_until !== null && f.snoozed_until > s.today
   const birthday = s.friends
-    .filter((f) => f.birthday_in_days === 0 && !f.paused && !snoozedPast(f))
+    .filter(
+      (f) =>
+        f.birthday_in_days === 0 && !f.paused && !snoozedPast(f) && rested(f) && !heldOut(f),
+    )
     .sort((a, b) => a.name.localeCompare(b.name))[0]
   if (birthday) {
     const item: NewItem = {
@@ -141,12 +166,8 @@ export function decide(s: UserState, deps: Deps): Decision {
   }
 
   // ---- candidates, in rotation order
-  const rested = (f: FriendRow) => {
-    const last = lastNudged.get(f.id)
-    return !last || daysBetween(last, s.today) >= COOLDOWN_DAYS
-  }
   const candidates = s.friends
-    .filter((f) => isDue(f) && rested(f) && open.get(f.id)?.assignment !== 'holdout')
+    .filter((f) => isDue(f) && rested(f) && !heldOut(f))
     .sort((a, b) => {
       const la = lastNudged.get(a.id) ?? ''
       const lb = lastNudged.get(b.id) ?? ''
@@ -162,7 +183,7 @@ export function decide(s: UserState, deps: Deps): Decision {
         id: deps.newId(),
         friend_id: f.id,
         assignment: deps.random() < HOLDOUT_RATE ? 'holdout' : 'nudged',
-        copy_variant: deps.random() < 0.5 ? 'reason' : 'plain',
+        copy_variant: deps.reasonArm && deps.random() < 0.5 ? 'reason' : 'plain',
         started_on: s.today,
       }
       d.newEpisodes.push(ep)
