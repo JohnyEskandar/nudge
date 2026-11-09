@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { supabase } from './lib/supabase'
+import { logEvent } from './lib/events'
+import { permissionState } from './lib/push'
 import Login from './screens/Login'
 import FriendList from './screens/FriendList'
 import People from './screens/People'
@@ -10,6 +12,16 @@ import Feedback from './screens/Feedback'
 import AddFriend from './screens/AddFriend'
 import Import from './screens/Import'
 import FriendDetail from './screens/FriendDetail'
+
+/**
+ * Each time a signed-in user opens the app: once at load, and again whenever an installed
+ * app comes back from the background (which does not reload the page). The notification
+ * permission rides along, which is how a quiet revocation shows up.
+ */
+function logOpen(resumed) {
+  logEvent('app_opened', { props: { path: window.location.pathname, resumed } })
+  logEvent('push_permission', { props: { state: permissionState() } })
+}
 
 export default function App() {
   const [session, setSession] = useState(null)
@@ -27,6 +39,17 @@ export default function App() {
 
     return () => sub.subscription.unsubscribe()
   }, [])
+
+  const signedIn = Boolean(session)
+  useEffect(() => {
+    if (!signedIn) return
+    logOpen(false)
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') logOpen(true)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [signedIn])
 
   if (!ready) {
     return (

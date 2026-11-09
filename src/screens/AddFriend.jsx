@@ -13,6 +13,7 @@ export default function AddFriend() {
     birthday: '',
     city: '',
     notes: '',
+    lastTalked: null,
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -38,7 +39,7 @@ export default function AddFriend() {
 
       <h1>Add someone</h1>
       <p className="sub">
-        Nudge will remind you when it&rsquo;s been longer than usual since you spoke.
+        Nudge will remind you when it&rsquo;s time to get in touch, one person at a time.
       </p>
 
       {error && <div className="error">{error}</div>}
@@ -47,7 +48,8 @@ export default function AddFriend() {
         <FriendForm
           values={values}
           onChange={setValues}
-          hint={`Reminds you every ${DEFAULT_CADENCE[values.category]} days. You can change this later.`}
+          askLastTalked
+          hint={`Comes up about every ${DEFAULT_CADENCE[values.category]} days. You can change this later.`}
         />
 
         <button className="btn" type="submit" disabled={saving || !values.name.trim()}>

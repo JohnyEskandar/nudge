@@ -1,11 +1,12 @@
 import { CATEGORIES, DEFAULT_STYLE } from '../lib/api'
 import { NUDGE_STYLES, STYLE_DESCRIPTION, STYLE_LABEL } from '../lib/share'
+import LastTalkedField from './LastTalkedField'
 
 /**
  * The fields that describe a friend. Shared by Add and Edit so the two can't drift
  * apart — a field added here shows up in both.
  */
-export default function FriendForm({ values, onChange, hint }) {
+export default function FriendForm({ values, onChange, hint, askLastTalked = false }) {
   const set = (key) => (e) => onChange({ ...values, [key]: e.target.value })
 
   /**
@@ -54,6 +55,13 @@ export default function FriendForm({ values, onChange, hint }) {
         )}
       </div>
 
+      {askLastTalked && (
+        <LastTalkedField
+          value={values.lastTalked}
+          onChange={(lastTalked) => onChange({ ...values, lastTalked })}
+        />
+      )}
+
       <div className="field">
         <label htmlFor="nudgeStyle">How you keep in touch</label>
         <select id="nudgeStyle" value={values.nudgeStyle} onChange={set('nudgeStyle')}>
@@ -81,8 +89,8 @@ export default function FriendForm({ values, onChange, hint }) {
           placeholder="+1 555 010 1234"
         />
         <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
-          With a number, calling them is one tap and logs itself. Without one, you can
-          still log the call yourself.
+          With a number, calling them is one tap. Without one, you can still log the call
+          yourself.
         </p>
       </div>
 
@@ -95,8 +103,7 @@ export default function FriendForm({ values, onChange, hint }) {
           onChange={set('birthday')}
         />
         <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
-          A birthday nudge arrives a few days ahead — the best excuse there is to reach
-          out.
+          On the day, Nudge reminds you once. The best excuse there is to reach out.
         </p>
       </div>
 

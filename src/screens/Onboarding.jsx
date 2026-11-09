@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { addFriend, CATEGORIES, DEFAULT_CADENCE, DEFAULT_STYLE, listFriends } from '../lib/api'
 import { nudgeTitle, STYLE_DESCRIPTION } from '../lib/share'
 import PushOptIn from '../components/PushOptIn'
+import LastTalkedField from '../components/LastTalkedField'
+import { BODY_LINES } from '../../supabase/functions/_shared/copy.ts'
+import { DEFAULT_FREQUENCY, frequencyFor } from '../lib/frequency'
 
 export const ONBOARDED_KEY = 'nudge.onboarded'
 
@@ -20,6 +23,7 @@ export default function Onboarding() {
   const [step, setStep] = useState(1)
   const [name, setName] = useState('')
   const [category, setCategory] = useState('friend')
+  const [lastTalked, setLastTalked] = useState(null)
   const [added, setAdded] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -43,10 +47,19 @@ export default function Onboarding() {
     setSaving(true)
     setError(null)
     try {
-      const friend = await addFriend({ name, category, city: '', notes: '', phone: '' })
+      const friend = await addFriend({
+        name,
+        category,
+        city: '',
+        notes: '',
+        phone: '',
+        lastTalked,
+        source: 'onboarding',
+      })
       setAdded([...added, friend])
       setName('')
       setCategory('friend')
+      setLastTalked(null)
     } catch (err) {
       setError(err.message)
     }
@@ -92,10 +105,12 @@ export default function Onboarding() {
               ))}
             </select>
             <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
-              {STYLE_DESCRIPTION[DEFAULT_STYLE[category]]} Every {DEFAULT_CADENCE[category]}{' '}
-              days, until you change it.
+              {STYLE_DESCRIPTION[DEFAULT_STYLE[category]]} About every{' '}
+              {DEFAULT_CADENCE[category]} days, until you change it.
             </p>
           </div>
+
+          <LastTalkedField value={lastTalked} onChange={setLastTalked} />
 
           <button className="btn btn-secondary" type="submit" disabled={saving || !name.trim()}>
             {saving ? 'Adding…' : 'Add to my people'}
@@ -117,7 +132,7 @@ export default function Onboarding() {
               <div className="friend-card" key={f.id}>
                 <div className="friend-top">
                   <span className="friend-name">{f.name}</span>
-                  <span className="status">every {DEFAULT_CADENCE[f.category]} days</span>
+                  <span className="status">about every {DEFAULT_CADENCE[f.category]} days</span>
                 </div>
               </div>
             ))}
@@ -143,28 +158,26 @@ export default function Onboarding() {
   if (step === 2) {
     const first = added[0]
     const style = first.nudge_style ?? DEFAULT_STYLE[first.category]
-    const cadence = DEFAULT_CADENCE[first.category]
 
     return (
       <>
         <h1>This is all it does</h1>
         <p className="sub">
-          When it&rsquo;s been too long, your phone buzzes once. No feed, no daily digest,
-          nothing else.
+          {frequencyFor(DEFAULT_FREQUENCY).pace}, Nudge names one person. Never the same
+          person twice in a week, and you can change how often in Settings. No feed, no
+          lists.
         </p>
 
         <div className="card push-preview">
           <div className="push-preview-app">NUDGE · now</div>
           <div className="push-preview-title">{nudgeTitle(first.name, style)}</div>
-          <div className="push-preview-body">
-            It&rsquo;s been {cadence} days past when you meant to catch up.
-          </div>
+          <div className="push-preview-body">{BODY_LINES[0]}</div>
         </div>
 
         <p className="muted" style={{ marginTop: 20 }}>
-          Tap it and you&rsquo;re one button from reaching out — and Nudge writes it down for
-          you, so there&rsquo;s nothing to remember. If it&rsquo;s the wrong week, snooze it;
-          it never assumes you spoke when you didn&rsquo;t.
+          Tap it and you&rsquo;re one button from reaching out. Already texted them? One tap
+          says so, and they go quiet for a while. Wrong week? Snooze it. Nudge never assumes
+          you spoke when you didn&rsquo;t.
         </p>
 
         <div className="spacer" />
@@ -181,8 +194,8 @@ export default function Onboarding() {
     <>
       <h1>One last thing</h1>
       <p className="sub">
-        A nudge is no use if it can&rsquo;t reach you. This is the only notification Nudge
-        will ever send.
+        A nudge is no use if it can&rsquo;t reach you. These nudges are the only
+        notifications Nudge sends.
       </p>
 
       <PushOptIn />

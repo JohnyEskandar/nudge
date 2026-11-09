@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CATEGORIES, DEFAULT_CADENCE, addFriends, listFriends } from '../lib/api'
 import { markDuplicates, parseContacts, pickContacts, pickerSupport } from '../lib/contacts'
 import PickerSetup, { PICKER_PENDING_KEY } from '../components/PickerSetup'
+import LastTalkedField from '../components/LastTalkedField'
 
 const PLACEHOLDER = `Maya Okonkwo
 Sam Okafor +1 555 010 1234
@@ -29,6 +30,7 @@ export default function Import() {
   const [text, setText] = useState('')
   const [rows, setRows] = useState(null)
   const [category, setCategory] = useState('friend')
+  const [lastTalked, setLastTalked] = useState(null)
   const [existing, setExisting] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -115,7 +117,7 @@ export default function Import() {
     setSaving(true)
     setError(null)
     try {
-      await addFriends(chosen)
+      await addFriends(chosen, { lastTalked, source: fromWelcome ? 'onboarding_import' : 'import' })
       navigate(fromWelcome ? '/welcome' : '/people', { replace: true })
     } catch (e) {
       setError(e.message)
@@ -183,10 +185,20 @@ export default function Import() {
               ))}
             </select>
             <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
-              Reminds you every {DEFAULT_CADENCE[category]} days. Change anyone below, or
-              any of them later.
+              They come up about every {DEFAULT_CADENCE[category]} days. Change anyone
+              below, or any of them later.
             </p>
           </div>
+
+          <LastTalkedField
+            id="batchLastTalked"
+            label="When did you last talk to most of them?"
+            value={lastTalked}
+            onChange={setLastTalked}
+          />
+          <p className="muted" style={{ marginTop: -8 }}>
+            Nudge spreads them over the next few weeks, so they never all come up at once.
+          </p>
 
           {rows.map((r, i) => (
             <div className="card" key={r.key} style={{ marginBottom: 12 }}>

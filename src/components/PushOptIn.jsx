@@ -1,3 +1,4 @@
+import { DEFAULT_FREQUENCY, frequencyFor } from '../lib/frequency'
 import { useEffect, useState } from 'react'
 import {
   currentSubscription,
@@ -96,9 +97,9 @@ export default function PushOptIn() {
   return (
     <div className="notice">
       <p>
-        <strong>Get a gentle nudge?</strong> Once a day, Nudge can send you a notification
-        when someone you care about is overdue for a catch-up. Nothing else &mdash; no
-        marketing, no daily digest.
+        <strong>Get a gentle nudge?</strong> {frequencyFor(DEFAULT_FREQUENCY).pace}, Nudge
+        names one person it&rsquo;s time to say hi to, and never the same person twice in a
+        week. You can change how often in Settings. Nothing else: no marketing, no lists.
       </p>
       {error && (
         <p>

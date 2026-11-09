@@ -28,22 +28,40 @@ export function firstName(name) {
 }
 
 /**
- * The title the nightly push will actually use. Mirrors titleFor() in
- * supabase/functions/daily-nudge/index.ts — if you change one, change the other. Shown
- * during onboarding so the promise the app makes is the promise it keeps.
+ * The title the push will actually use, shown during onboarding so the promise the app
+ * makes is the promise it keeps. One function for both, so they cannot drift.
  */
-export function nudgeTitle(name, style) {
-  if (style === 'call') return `Give ${name} a call`
-  if (style === 'check_in') return `Check in on ${name}`
-  return `Make a plan with ${name}`
+export { titleFor as nudgeTitle } from '../../supabase/functions/_shared/copy.ts'
+
+/**
+ * Openers that are easy to answer and never mention the gap: "it's been a while" makes
+ * the other person do the work of forgiving it. They rotate so the same words don't go
+ * to everyone. {first} is the friend's first name. Never a long dash, never branded.
+ */
+export const DRAFTS = {
+  check_in: [
+    'Hey {first}, you crossed my mind today. How have you been?',
+    "Hi {first}! What's been the best part of your month?",
+    "Hey {first}, how's everything going with you?",
+  ],
+  hang: [
+    'Hey {first}! Want to find a time to catch up soon?',
+    'Hey {first}, how are you? Up for a call or a coffee sometime soon?',
+  ],
+  // Mentors: thanks first, no ask (the early-career networkers' opener).
+  mentor: [
+    'Hi {first}, I was thinking about some advice you gave me and wanted to say thank you. How have you been?',
+  ],
 }
 
-export function composeMessage(name, style) {
-  const first = firstName(name)
-  if (style === 'check_in') {
-    return `Hey ${first} — you crossed my mind today. How have you been?`
-  }
-  return `Hey ${first} — it's been a while. Free to hang this week?`
+/**
+ * The draft that goes into the share sheet. `seed` picks the opener (the day of the
+ * month by default, so it changes as the days do).
+ */
+export function composeMessage(name, style, { category, seed = new Date().getDate() } = {}) {
+  const lines = category === 'mentor' ? DRAFTS.mentor : style === 'check_in' ? DRAFTS.check_in : DRAFTS.hang
+  const line = lines[((seed % lines.length) + lines.length) % lines.length]
+  return line.replace('{first}', firstName(name))
 }
 
 /**

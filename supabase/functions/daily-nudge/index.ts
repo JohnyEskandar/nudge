@@ -1,5 +1,11 @@
-// daily-nudge — runs once a day (pg_cron), finds every user's overdue friends, and
-// sends a real Web Push message to each of their subscribed devices.
+// daily-nudge — runs once a day (pg_cron). For each user it decides whether today has a
+// nudge and who it is about, records that decision, and sends one Web Push to each of the
+// user's devices.
+//
+// Who and whether live in ../_shared/pick.ts (pure, tested, replayed over 14 days); what
+// it says lives in ../_shared/copy.ts. This file only reads, writes and delivers. The order
+// matters: the decision is written before anything is sent, and every send attempt, failed
+// or not, gets a nudge_sends row, so the record can never be missing a push that went out.
 //
 // This talks the Web Push protocol directly to the browser's push service
 // (Apple/Google/Mozilla), so the message is delivered by the OS and arrives with the
@@ -7,6 +13,16 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import * as webpush from 'jsr:@negrel/webpush@0.5.0'
+import {
+  decide,
+  DEFAULT_FREQUENCY,
+  type Frequency,
+  type FriendRow,
+  type OpenEpisode,
+  type PastItem,
+} from '../_shared/pick.ts'
+import { pushPayload } from '../_shared/copy.ts'
+import { addDays, daysBetween } from '../_shared/dates.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 // Deliberately NOT the platform-injected SUPABASE_SERVICE_ROLE_KEY. On this project
@@ -17,6 +33,11 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE_KEY = Deno.env.get('NUDGE_SERVICE_ROLE_KEY')!
 const VAPID_KEYS = Deno.env.get('VAPID_KEYS')!
 const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:nudge@example.com'
+
+/** PostgREST returns at most max_rows per request (1000 by default), so read in pages. */
+const PAGE = 1000
+/** How far back items are read: covers the 7-day cooldown and weekly pace with room. */
+const LOOKBACK_DAYS = 14
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { persistSession: false },
@@ -29,199 +50,258 @@ const appServer = await webpush.ApplicationServer.new({
   }),
 })
 
-type Friend = {
-  name: string
-  days_overdue: number
-  nudge_style: string
-  birthday_in_days: number | null
-}
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 
-const birthdaySoon = (f: Friend) => f.birthday_in_days !== null && f.birthday_in_days <= 3
+// deno-lint-ignore no-explicit-any
+type Query = any
 
-function birthdayTitle(f: Friend): string {
-  if (f.birthday_in_days === 0) return `It's ${f.name}'s birthday`
-  if (f.birthday_in_days === 1) return `${f.name}'s birthday is tomorrow`
-  return `${f.name}'s birthday is in ${f.birthday_in_days} days`
-}
-
-/** "Maya", "Maya and Tom", "Maya, Tom and 2 others" */
-function nameList(names: string[]): string {
-  if (names.length === 1) return names[0]
-  if (names.length === 2) return `${names[0]} and ${names[1]}`
-  return `${names[0]}, ${names[1]} and ${names.length - 2} other${
-    names.length - 2 === 1 ? '' : 's'
-  }`
-}
-
-/**
- * Not every relationship wants a hangout, so the nudge doesn't ask for one. The friend's
- * nudge_style decides what the notification actually suggests — a plan, a quiet message,
- * or the phone.
- */
-function titleFor(friend: Friend): string {
-  switch (friend.nudge_style) {
-    case 'call':
-      return `Give ${friend.name} a call`
-    case 'check_in':
-      return `Check in on ${friend.name}`
-    default:
-      return `Make a plan with ${friend.name}`
+/** Every row a query matches, a page at a time, in a stable order. */
+async function readAll<T>(build: () => Query): Promise<T[]> {
+  const out: T[] = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await build().range(from, from + PAGE - 1)
+    if (error) throw new Error(error.message)
+    out.push(...(data as T[]))
+    if (!data || data.length < PAGE) return out
   }
 }
 
-function composeMessage(friends: Friend[]) {
-  // A birthday is the strongest reason there is, so it takes the title over any amount
-  // of overdue-ness; everyone else rides along in the body.
-  const birthdays = friends
-    .filter(birthdaySoon)
-    .sort((a, b) => a.birthday_in_days! - b.birthday_in_days!)
-  const overdue = friends
-    .filter((f) => f.days_overdue >= 0 && !birthdaySoon(f))
-    .sort((a, b) => b.days_overdue - a.days_overdue)
-
-  if (birthdays.length > 0) {
-    const b = birthdays[0]
-    const others = [...birthdays.slice(1), ...overdue].map((f) => f.name)
-    const base =
-      b.birthday_in_days === 0
-        ? `Today's the day — say happy birthday.`
-        : `The best excuse there is to reach out.`
-    const body =
-      others.length > 0
-        ? `${base} ${nameList(others)} ${others.length === 1 ? 'is' : 'are'} also waiting on a catch-up.`
-        : base
-    return { title: birthdayTitle(b), body, url: '/' }
+function groupBy<T>(rows: T[], key: (r: T) => string): Map<string, T[]> {
+  const m = new Map<string, T[]>()
+  for (const r of rows) {
+    const k = key(r)
+    const list = m.get(k)
+    if (list) list.push(r)
+    else m.set(k, [r])
   }
+  return m
+}
 
-  if (overdue.length === 1) {
-    const f = overdue[0]
-    const body =
-      f.days_overdue === 0
-        ? `Today's a good day for it.`
-        : `It's been ${f.days_overdue} day${
-            f.days_overdue === 1 ? '' : 's'
-          } past when you meant to catch up.`
-    return { title: titleFor(f), body, url: '/' }
-  }
-
-  return {
-    title: `${overdue.length} people to catch up with`,
-    body: `${nameList(overdue.map((f) => f.name))} are overdue for a catch-up.`,
-    url: '/',
-  }
+type SendRow = {
+  item_id: string
+  user_id: string
+  subscription_host: string | null
+  status: 'sent' | 'gone' | 'failed' | 'no_device'
+  http_status: number | null
+  error: string | null
 }
 
 Deno.serve(async (req) => {
   // Only the cron job (which holds the service role key) may invoke this.
   const auth = req.headers.get('Authorization') ?? ''
-  if (auth !== `Bearer ${SERVICE_ROLE_KEY}`) {
-    return new Response(JSON.stringify({ error: 'unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  }
+  if (auth !== `Bearer ${SERVICE_ROLE_KEY}`) return json({ error: 'unauthorized' }, 401)
 
-  // An optional audience of one. The cron posts `{}` and so nudges everyone, exactly as
-  // before — but a test can now name itself and reach only its own devices. Without this,
-  // running verify:push meant sending a real notification to every real person using the
-  // app, which is a thing you can only do so many times before it stops being a test and
-  // starts being spam.
+  // An optional audience of one. The cron posts `{}` and so runs for everyone, but a test
+  // can name itself and reach only its own devices.
   const body = await req.json().catch(() => ({}))
   const onlyUserId: string | undefined = body?.user_id
+  const scoped = (q: Query) => (onlyUserId ? q.eq('user_id', onlyUserId) : q)
 
-  // Service role bypasses RLS, so this sees every user's friends at once. Two reasons
-  // put someone in a nudge: overdue (days_overdue >= 0), or a birthday within 3 days.
-  let overdueQuery = admin
-    .from('friend_overview')
-    .select('user_id, name, days_overdue, nudge_style, birthday_in_days')
-    .or('days_overdue.gte.0,birthday_in_days.lte.3')
+  // UTC calendar date, matching current_date in friend_overview. Per-user local dates
+  // arrive with the local send hour (deploy 2).
+  const today = new Date().toISOString().slice(0, 10)
 
-  if (onlyUserId) overdueQuery = overdueQuery.eq('user_id', onlyUserId)
-
-  const { data: overdue, error } = await overdueQuery
-
-  if (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    })
+  type EpisodeRow = Omit<OpenEpisode, 'friend_id'> & { user_id: string; friend_id: string | null }
+  type ItemRow = Omit<PastItem, 'friend_id'> & { user_id: string; friend_id: string | null }
+  let friends: (FriendRow & { user_id: string })[]
+  let episodes: EpisodeRow[]
+  let items: ItemRow[]
+  type SettingsRow = { user_id: string; frequency: Frequency; start_nudging_on: string | null }
+  let settings: SettingsRow[]
+  try {
+    ;[friends, episodes, items, settings] = await Promise.all([
+      readAll<FriendRow & { user_id: string }>(() =>
+        scoped(
+          admin
+            .from('friend_overview')
+            .select(
+              'id, user_id, name, nudge_style, days_overdue, paused, birthday_in_days, snoozed_until',
+            )
+            .or('days_overdue.gte.0,birthday_in_days.eq.0')
+            .order('id'),
+        ),
+      ),
+      readAll<EpisodeRow>(() =>
+        scoped(
+          admin
+            .from('nudge_episodes')
+            .select('id, user_id, friend_id, assignment, started_on, copy_variant')
+            .is('closed_at', null)
+            .order('id'),
+        ),
+      ),
+      readAll<ItemRow>(() =>
+        scoped(
+          admin
+            .from('nudge_items')
+            .select('user_id, friend_id, local_date, assignment, reason')
+            .gte('local_date', addDays(today, -LOOKBACK_DAYS))
+            .order('id'),
+        ),
+      ),
+      readAll<SettingsRow>(() =>
+        scoped(admin.from('user_settings').select('user_id, frequency, start_nudging_on').order('user_id')),
+      ),
+    ])
+  } catch (err) {
+    return json({ error: String(err) }, 500)
   }
 
-  const byUser = new Map<string, Friend[]>()
-  for (const row of overdue ?? []) {
-    const list = byUser.get(row.user_id) ?? []
-    list.push({
-      name: row.name,
-      days_overdue: row.days_overdue,
-      nudge_style: row.nudge_style,
-      birthday_in_days: row.birthday_in_days,
-    })
-    byUser.set(row.user_id, list)
+  const friendsBy = groupBy(friends, (r) => r.user_id)
+  const episodesBy = groupBy(episodes, (r) => r.user_id)
+  const itemsBy = groupBy(items, (r) => r.user_id)
+  const settingsOf = new Map(settings.map((s) => [s.user_id, s]))
+  const users = new Set([...friendsBy.keys(), ...episodesBy.keys()])
+
+  if (users.size === 0) {
+    return json({ ok: true, users_considered: 0, sent: 0, message: 'nobody due' })
   }
 
-  if (byUser.size === 0) {
-    return new Response(
-      JSON.stringify({ ok: true, users_notified: 0, sent: 0, message: 'nobody overdue' }),
-      { headers: { 'Content-Type': 'application/json' } },
-    )
+  // In chunks (a long `in` list overflows the URL) and pages (max_rows), so nobody is
+  // wrongly logged as having no device.
+  type SubRow = { id: string; user_id: string; subscription: unknown }
+  const subs: SubRow[] = []
+  try {
+    const all = [...users]
+    for (let i = 0; i < all.length; i += 100) {
+      const chunk = all.slice(i, i + 100)
+      subs.push(
+        ...(await readAll<SubRow>(() =>
+          admin.from('push_subscriptions').select('id, user_id, subscription').in('user_id', chunk).order('id'),
+        )),
+      )
+    }
+  } catch (err) {
+    return json({ error: String(err) }, 500)
+  }
+  const subsBy = groupBy(subs, (r) => r.user_id)
+
+  /** One row per attempt, written as it happens, so a crash mid-run loses at most one. */
+  async function logSend(row: SendRow) {
+    const { error } = await admin.from('nudge_sends').insert(row)
+    if (error) failures.push(`${row.user_id}: send log: ${error.message}`)
+    else counts.send_rows++
   }
 
-  const { data: subs, error: subErr } = await admin
-    .from('push_subscriptions')
-    .select('id, user_id, subscription')
-    .in('user_id', [...byUser.keys()])
-
-  if (subErr) {
-    return new Response(JSON.stringify({ error: subErr.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    })
+  const counts = {
+    users_considered: users.size,
+    users_notified: 0,
+    sent: 0,
+    holdouts: 0,
+    closed: 0,
+    skipped: {} as Record<string, number>,
+    send_rows: 0,
+    pruned: 0,
   }
-
-  let sent = 0
   const failures: string[] = []
-  // Pruning deletes a real person's only way of being reminded, so it must never be a
-  // silent number. Record what the push service actually said before dropping the row.
-  const pruned: { host: string; status: number | null }[] = []
-  const notifiedUsers = new Set<string>()
+  const seed = daysBetween('2026-01-01', today)
 
-  for (const row of subs ?? []) {
-    const friends = byUser.get(row.user_id)
-    if (!friends?.length) continue
+  for (const userId of users) {
+    const decision = decide(
+      {
+        today,
+        frequency: settingsOf.get(userId)?.frequency ?? DEFAULT_FREQUENCY,
+        startOn: settingsOf.get(userId)?.start_nudging_on ?? null,
+        friends: friendsBy.get(userId) ?? [],
+        // A friend deleted mid-episode leaves friend_id null; the picker closes it.
+        openEpisodes: (episodesBy.get(userId) ?? []).map((e) => ({ ...e, friend_id: e.friend_id ?? '' })),
+        recentItems: (itemsBy.get(userId) ?? []).map((i) => ({ ...i, friend_id: i.friend_id ?? '' })),
+      },
+      { random: Math.random, newId: () => crypto.randomUUID() },
+    )
 
-    const payload = composeMessage(friends)
+    if (decision.skipped) counts.skipped[decision.skipped] = (counts.skipped[decision.skipped] ?? 0) + 1
 
     try {
-      const subscriber = appServer.subscribe(row.subscription as webpush.PushSubscription)
-      await subscriber.pushTextMessage(JSON.stringify(payload), {})
-      sent++
-      notifiedUsers.add(row.user_id)
+      for (const reason of ['not_due', 'holdout_window_end'] as const) {
+        const ids = decision.close.filter((c) => c.reason === reason).map((c) => c.id)
+        if (!ids.length) continue
+        const { error } = await admin
+          .from('nudge_episodes')
+          .update({ closed_at: new Date().toISOString(), close_reason: reason })
+          .in('id', ids)
+        if (error) throw new Error(`close episodes: ${error.message}`)
+        counts.closed += ids.length
+      }
+      if (decision.newEpisodes.length) {
+        const { error } = await admin
+          .from('nudge_episodes')
+          .insert(decision.newEpisodes.map((e) => ({ ...e, user_id: userId })))
+        if (error) throw new Error(`insert episodes: ${error.message}`)
+      }
+      if (decision.items.length) {
+        const { error } = await admin
+          .from('nudge_items')
+          .insert(decision.items.map((i) => ({ ...i, user_id: userId })))
+        if (error?.code === '23505') {
+          // Another run already pushed this user today (nudge_items_one_push_a_day).
+          // Undo the episodes this run opened, so nobody is left held out by a loser.
+          if (decision.newEpisodes.length) {
+            await admin.from('nudge_episodes').delete().in('id', decision.newEpisodes.map((e) => e.id))
+          }
+          counts.skipped.concurrent_run = (counts.skipped.concurrent_run ?? 0) + 1
+          continue
+        }
+        if (error) throw new Error(`insert items: ${error.message}`)
+      }
     } catch (err) {
-      // 410 Gone (or 404) means the browser threw this subscription away — the user
-      // uninstalled or cleared data. Drop it so we stop trying forever.
-      if (err instanceof webpush.PushMessageError && err.isGone()) {
-        const endpoint = (row.subscription as { endpoint: string }).endpoint
-        pruned.push({
-          host: new URL(endpoint).host,
-          status: (err as unknown as { response?: Response }).response?.status ?? null,
-        })
-        await admin.from('push_subscriptions').delete().eq('id', row.id)
-      } else {
-        failures.push(String(err))
+      // Never push what could not be recorded: an unlogged push is the bug this fixes.
+      failures.push(`${userId}: ${String(err)}`)
+      continue
+    }
+    counts.holdouts += decision.newEpisodes.filter((e) => e.assignment === 'holdout').length
+
+    const push = decision.push
+    if (!push) continue
+
+    const payload = pushPayload({
+      friendId: push.friend.id,
+      name: push.friend.name,
+      style: push.friend.nudge_style,
+      reason: push.reason,
+      itemId: push.item_id,
+      seed,
+    })
+
+    let delivered = false
+    const devices = subsBy.get(userId) ?? []
+    if (devices.length === 0) {
+      await logSend({ item_id: push.item_id, user_id: userId, subscription_host: null, status: 'no_device', http_status: null, error: null })
+    }
+
+    for (const row of devices) {
+      const endpoint = (row.subscription as { endpoint: string }).endpoint
+      const host = (() => {
+        try {
+          return new URL(endpoint).host
+        } catch {
+          return null
+        }
+      })()
+      try {
+        const subscriber = appServer.subscribe(row.subscription as webpush.PushSubscription)
+        await subscriber.pushTextMessage(JSON.stringify(payload), {})
+        await logSend({ item_id: push.item_id, user_id: userId, subscription_host: host, status: 'sent', http_status: 201, error: null })
+        counts.sent++
+        delivered = true
+      } catch (err) {
+        const status = (err as { response?: Response }).response?.status ?? null
+        // 410 Gone (or 404) means the browser threw this subscription away — the user
+        // uninstalled or cleared data. Drop it so we stop trying forever.
+        if (err instanceof webpush.PushMessageError && err.isGone()) {
+          await logSend({ item_id: push.item_id, user_id: userId, subscription_host: host, status: 'gone', http_status: status, error: null })
+          await admin.from('push_subscriptions').delete().eq('id', row.id)
+          counts.pruned++
+        } else {
+          await logSend({ item_id: push.item_id, user_id: userId, subscription_host: host, status: 'failed', http_status: status, error: String(err).slice(0, 500) })
+          failures.push(`${userId}: ${String(err).slice(0, 200)}`)
+        }
       }
     }
+
+    if (delivered) counts.users_notified++
   }
 
-  return new Response(
-    JSON.stringify({
-      ok: true,
-      users_overdue: byUser.size,
-      users_notified: notifiedUsers.size,
-      sent,
-      pruned: pruned.length,
-      pruned_detail: pruned,
-      failures,
-    }),
-    { headers: { 'Content-Type': 'application/json' } },
-  )
+  return json({ ok: true, today, ...counts, failures })
 })

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   birthdayISO,
   DEFAULT_CADENCE,
@@ -9,6 +9,7 @@ import {
   listInteractions,
   logCatchUp,
   setCadence,
+  setPaused,
   snoozeFriend,
   updateFriend,
 } from '../lib/api'
@@ -22,8 +23,12 @@ import {
   lastContactLabel,
   todayISO,
 } from '../lib/format'
-import { sentMessage, useReachOut } from '../lib/useReachOut'
+import { useReachOut } from '../lib/useReachOut'
+import { logEvent } from '../lib/events'
 import ReachOutAction from '../components/ReachOutAction'
+import ReachOutPrompt from '../components/ReachOutPrompt'
+import AnswerCard from '../components/AnswerCard'
+import AlreadyDidIt from '../components/AlreadyDidIt'
 import SnoozeActions from '../components/SnoozeActions'
 import FriendForm from '../components/FriendForm'
 
@@ -43,6 +48,9 @@ function cadenceHint(friend, draftCategory) {
 export default function FriendDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  // Arrived from a push: ?n= is the nudge item it was about.
+  const [params, setParams] = useSearchParams()
+  const fromPush = params.get('n')
 
   const [friend, setFriend] = useState(null)
   const [interactions, setInteractions] = useState([])
@@ -75,8 +83,37 @@ export default function FriendDetail() {
     load()
   }, [load])
 
+  // A tapped push is the one moment we know the nudge was seen. Logged once per arrival.
+  useEffect(() => {
+    if (fromPush) logEvent('push_opened', { friendId: id, itemId: fromPush })
+  }, [fromPush, id])
+
+  /** Once answered, the question goes; replace so Back doesn't bring it back. */
+  async function onPushAnswered() {
+    await load()
+    setTimeout(() => setParams({}, { replace: true }), 1500)
+  }
+
+  async function onTogglePaused() {
+    setError(null)
+    try {
+      await setPaused(id, !friend.paused)
+      await load()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   // The same reach-out loop the Today list uses.
-  const { reachOut, busyId, sent, error: reachError, setError: setReachError } = useReachOut(load)
+  const {
+    reachOut,
+    confirm: confirmReachOut,
+    busyId,
+    pending,
+    done,
+    error: reachError,
+    setError: setReachError,
+  } = useReachOut(load)
 
   async function onLog(e) {
     e.preventDefault()
@@ -272,9 +309,25 @@ export default function FriendDetail() {
 
         <div className="spacer" />
 
-        {sent?.id === friend.id && (
-          <div className="notice">{sentMessage(sent.how, friend.name)}</div>
+        {fromPush && (
+          <div style={{ marginBottom: 12 }}>
+            <AnswerCard
+              friend={friend}
+              itemId={fromPush}
+              source="push"
+              question={`Did you already reach ${friend.name.split(/\s+/)[0]}?`}
+              onDone={onPushAnswered}
+            />
+          </div>
         )}
+
+        <ReachOutPrompt
+          friend={friend}
+          pending={pending}
+          done={done}
+          busy={busyId === friend.id}
+          onConfirm={confirmReachOut}
+        />
 
         {!logging ? (
           <>
@@ -299,7 +352,10 @@ export default function FriendDetail() {
               ))}
             </div>
 
-            {/* The third door, only when there is a nudge to answer. */}
+            {/* The third and fourth doors, only when there is a nudge to answer. */}
+            {due.due && !fromPush && (
+              <AlreadyDidIt friend={friend} source="detail" onDone={load} />
+            )}
             {due.due && (
               <SnoozeActions
                 cadenceDays={friend.cadence_days}
@@ -375,6 +431,18 @@ export default function FriendDetail() {
             </button>
           )}
         </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h2>{friend.paused ? 'No nudges about them' : 'We see each other all the time'}</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          {friend.paused
+            ? 'Nudge won’t remind you about them. Switch it back any time.'
+            : 'If you never need reminding about them, Nudge can leave them out.'}
+        </p>
+        <button className="btn btn-secondary" onClick={onTogglePaused}>
+          {friend.paused ? 'Start nudging me again' : 'Stop nudging me about them'}
+        </button>
       </div>
 
       {friend.notes && (

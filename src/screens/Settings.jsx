@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { deleteAccount } from '../lib/api'
+import { deleteAccount, getUserSettings, saveUserSettings } from '../lib/api'
+import { FREQUENCIES } from '../lib/frequency'
+import { logEvent } from '../lib/events'
 import { buildExport, downloadExport } from '../lib/export'
 import { disablePush } from '../lib/push'
 import { supabase } from '../lib/supabase'
@@ -20,9 +22,43 @@ export default function Settings() {
   const [confirming, setConfirming] = useState(false)
   const [typed, setTyped] = useState('')
 
+  const [prefs, setPrefs] = useState(null) // { frequency, start_nudging_on }
+  const [savedNote, setSavedNote] = useState(null)
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email ?? null))
+    getUserSettings()
+      .then(setPrefs)
+      .catch((err) => setError(err.message))
   }, [])
+
+  async function savePrefs(next) {
+    const previous = prefs
+    setPrefs(next)
+    setError(null)
+    setSavedNote(null)
+    try {
+      await saveUserSettings({ frequency: next.frequency, startNudgingOn: next.start_nudging_on })
+      if (next.frequency !== previous?.frequency) {
+        logEvent('frequency_changed', { props: { from: previous?.frequency, to: next.frequency } })
+      }
+      setSavedNote('Saved.')
+    } catch (err) {
+      setPrefs(previous)
+      setError(err.message)
+    }
+  }
+
+  /**
+   * Signing out has to let go of this device's push subscription too, or the phone keeps
+   * getting nudges about an account that is no longer on it, and a second account
+   * signed in here would get two a day.
+   */
+  async function onSignOut() {
+    setBusy('signout')
+    await disablePush().catch(() => {})
+    await supabase.auth.signOut()
+  }
 
   async function onExport() {
     setBusy('export')
@@ -75,6 +111,41 @@ export default function Settings() {
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
+        <h2>How often</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Each nudge names one person, and never the same person twice in a week.
+        </p>
+        {prefs && (
+          <>
+            {FREQUENCIES.map((f) => (
+              <label key={f.value} className="row" style={{ gap: 8, marginBottom: 8 }}>
+                <input
+                  type="radio"
+                  name="frequency"
+                  checked={prefs.frequency === f.value}
+                  onChange={() => savePrefs({ ...prefs, frequency: f.value })}
+                />
+                {f.label}
+              </label>
+            ))}
+            <div className="field" style={{ marginTop: 12 }}>
+              <label htmlFor="startOn">Start nudging me on (optional)</label>
+              <input
+                id="startOn"
+                type="date"
+                value={prefs.start_nudging_on ?? ''}
+                onChange={(e) => savePrefs({ ...prefs, start_nudging_on: e.target.value || null })}
+              />
+              <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
+                Setting up before a goodbye? Nudge stays quiet until this date.
+              </p>
+            </div>
+            {savedNote && <p className="muted">{savedNote}</p>}
+          </>
+        )}
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
         <h2>Your data</h2>
         <p className="muted" style={{ marginTop: 0 }}>
           Everyone you track and every catch-up you&rsquo;ve logged, as a file you keep.
@@ -86,8 +157,8 @@ export default function Settings() {
 
       <div className="card" style={{ marginBottom: 16 }}>
         <h2>Account</h2>
-        <button className="btn btn-secondary" onClick={() => supabase.auth.signOut()}>
-          Sign out
+        <button className="btn btn-secondary" onClick={onSignOut} disabled={busy === 'signout'}>
+          {busy === 'signout' ? 'Signing out…' : 'Sign out'}
         </button>
       </div>
 
