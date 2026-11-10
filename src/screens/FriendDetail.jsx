@@ -388,7 +388,7 @@ export default function FriendDetail() {
                 id="note"
                 value={logNote}
                 onChange={(e) => setLogNote(e.target.value)}
-                placeholder="Caught up over coffee — she's moving in March."
+                placeholder="Caught up over coffee. She's moving in March."
               />
             </div>
             <div className="row">

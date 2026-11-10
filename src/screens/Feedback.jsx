@@ -81,7 +81,7 @@ export default function Feedback() {
       <h1>Send feedback</h1>
       <p className="sub">
         What&rsquo;s annoying, what&rsquo;s missing, what you&rsquo;d change. Half-formed is
-        fine &mdash; it&rsquo;s more useful than nothing.
+        fine: it&rsquo;s more useful than nothing.
       </p>
 
       {error && <div className="error">{error}</div>}

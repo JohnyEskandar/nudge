@@ -100,7 +100,7 @@ export default function Login() {
 
         <p className="sub">
           <strong>If you added Nudge to your home screen</strong>, don&rsquo;t tap the link
-          &mdash; it opens in Safari, which can&rsquo;t sign this app in. Instead:
+          (it opens in Safari, which can&rsquo;t sign this app in). Instead:
           long-press the link, choose <strong>Copy Link</strong>, and paste it here.
         </p>
 
@@ -151,8 +151,8 @@ export default function Login() {
     <div style={{ paddingTop: 72 }}>
       <h1>Nudge</h1>
       <p className="sub">
-        A quiet place to keep track of the people you care about &mdash; and a gentle
-        reminder when it&rsquo;s been too long.
+        For the people you&rsquo;d miss: family, old friends, the ones who moved away.
+        Now and then Nudge names one of them, so a hello happens while it&rsquo;s easy.
       </p>
 
       {error && <div className="error">{error}</div>}

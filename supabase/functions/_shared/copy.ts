@@ -10,7 +10,7 @@ export type Style = 'hang' | 'check_in' | 'call' | string
 export const BODY_LINES = [
   'A short hello is plenty. Already did it? Tap to say so.',
   'No reason needed, just a quick hello. Already talked? Tap to say so.',
-  'One line is enough to start. Already in touch? Tap to say so.',
+  'They would probably love to hear from you. Already in touch? Tap to say so.',
 ] as const
 
 export function titleFor(name: string, style: Style): string {
