@@ -171,7 +171,7 @@ export default function FriendList() {
       {pickerReady && (
         <div className="notice">
           <p>
-            <strong>Your contacts picker is ready.</strong> That switch worked — you can
+            <strong>Your contacts picker is ready.</strong> That switch worked, so you can
             pick people straight from your contacts now.
           </p>
           <div className="row">
@@ -196,8 +196,10 @@ export default function FriendList() {
 
       {friends?.length === 0 && (
         <div className="empty">
-          <p>No one here yet.</p>
-          <p className="muted">Add the first person you want to stay close to.</p>
+          <p>Who would you miss?</p>
+          <p className="muted">
+            Add them here: family, old friends, anyone you&rsquo;d hate to lose touch with.
+          </p>
           <button className="btn-quiet" onClick={() => navigate('/import')}>
             Add several at once
           </button>

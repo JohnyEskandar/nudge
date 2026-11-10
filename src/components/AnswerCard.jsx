@@ -38,7 +38,7 @@ export default function AnswerCard({ friend, question, source, itemId = null, on
       <div className="notice">
         {answered === 'not_yet'
           ? `No problem. ${first} stays on your list.`
-          : `Noted. ${first} can rest for a while.`}
+          : `Lovely. Hope it turns into a real catch-up with ${first}.`}
       </div>
     )
   }

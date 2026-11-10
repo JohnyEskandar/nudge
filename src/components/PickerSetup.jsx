@@ -41,7 +41,7 @@ export default function PickerSetup({ onReady, onDismiss }) {
       <div className="notice">
         <p>
           This browser doesn&rsquo;t offer a contact picker, and there&rsquo;s no setting
-          that turns one on — it&rsquo;s a phone feature. Pasting a list of names works
+          that turns one on: it&rsquo;s a phone feature. Pasting a list of names works
           right here and ends up in the same place.
         </p>
         <button className="btn-quiet" onClick={onDismiss}>
@@ -70,7 +70,7 @@ export default function PickerSetup({ onReady, onDismiss }) {
           Find <strong>Contact Picker API</strong> and turn it on
         </li>
         <li>
-          Come back, then fully close Nudge — swipe it away in the app switcher — and open
+          Come back, then fully close Nudge (swipe it away in the app switcher) and open
           it again
         </li>
       </ol>
@@ -90,7 +90,7 @@ export default function PickerSetup({ onReady, onDismiss }) {
 
       <div className="row">
         <button className="btn" style={{ width: 'auto' }} onClick={checkAgain}>
-          I&rsquo;ve done this — check again
+          I&rsquo;ve done this, check again
         </button>
         <button className="btn-quiet" onClick={onDismiss}>
           Not now

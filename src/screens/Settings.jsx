@@ -111,6 +111,19 @@ export default function Settings() {
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
+        <h2>Why Nudge</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Everyone you know has a number: how many more times you&rsquo;ll see them if
+          nothing changes. It&rsquo;s a forecast, not fate. Reach out and it changes.
+        </p>
+        <p className="muted" style={{ marginBottom: 0 }}>
+          Nudge makes sure the people you&rsquo;d miss, family and friends alike, don&rsquo;t
+          quietly become memories. It names one of them now and then, and keeps track so
+          you don&rsquo;t have to.
+        </p>
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
         <h2>How often</h2>
         <p className="muted" style={{ marginTop: 0 }}>
           Each nudge names one person, and never the same person twice in a week.
@@ -168,7 +181,7 @@ export default function Settings() {
           <>
             <p className="muted" style={{ marginTop: 0 }}>
               Erases your account, everyone on your list, and every catch-up you&rsquo;ve
-              logged. It cannot be undone — export first if you might want any of it.
+              logged. It cannot be undone, so export first if you might want any of it.
             </p>
             <button className="btn-danger-quiet" onClick={() => setConfirming(true)}>
               Delete my account

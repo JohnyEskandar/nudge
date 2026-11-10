@@ -1,7 +1,7 @@
 {
   "name": "Nudge",
   "short_name": "Nudge",
-  "description": "Stay close to the people who matter.",
+  "description": "Keep the people you would miss in your life, one hello at a time.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

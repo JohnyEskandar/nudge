@@ -70,10 +70,11 @@ export default function Onboarding() {
   if (step === 1) {
     return (
       <>
-        <h1>Who do you want to stay close to?</h1>
+        <h1>Who would you miss?</h1>
         <p className="sub">
-          Start with five people you&rsquo;d hate to drift from. You can add more later, and
-          nobody is told they&rsquo;re on your list.
+          Start with five. A parent, a grandparent, a brother or sister, an old best friend,
+          the friend who moved away. You can add more later, and nobody is told
+          they&rsquo;re on your list.
         </p>
 
         {error && <div className="error">{error}</div>}
@@ -175,9 +176,13 @@ export default function Onboarding() {
         </div>
 
         <p className="muted" style={{ marginTop: 20 }}>
-          Tap it and you&rsquo;re one button from reaching out. Already texted them? One tap
-          says so, and they go quiet for a while. Wrong week? Snooze it. Nudge never assumes
-          you spoke when you didn&rsquo;t.
+          Nobody fought and nothing happened: life just got busy. A small hello is
+          usually all it takes, and they&rsquo;ll probably be glad you went first.
+        </p>
+        <p className="muted">
+          Tap it and you&rsquo;re one button from reaching out. Already in touch? One tap
+          says so, and Nudge leaves them be for a bit. Wrong week? Snooze it. Nudge never
+          assumes you spoke when you didn&rsquo;t.
         </p>
 
         <div className="spacer" />

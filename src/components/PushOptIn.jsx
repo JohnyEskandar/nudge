@@ -41,7 +41,7 @@ export default function PushOptIn() {
     return (
       <div className="notice">
         <p>
-          <strong>Want a nudge when it&rsquo;s been too long?</strong> On iPhone and iPad,
+          <strong>Want a nudge about the people you&rsquo;d miss?</strong> On iPhone and iPad,
           notifications only work once Nudge is on your home screen.
         </p>
         <ol>

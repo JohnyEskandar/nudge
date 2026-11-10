@@ -133,7 +133,7 @@ export default function Import() {
 
       <h1>Add several at once</h1>
       <p className="sub">
-        Paste a list of names — from a group chat, a note, anywhere. One per line. If a
+        Paste a list of names from a group chat, a note, anywhere. One per line. If a
         phone number is on the line, Nudge will pick it up.
       </p>
 
