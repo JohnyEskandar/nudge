@@ -472,3 +472,35 @@ a.btn {
   color: var(--ink-soft);
   margin: 10px 0 0;
 }
+
+/* ------------------------------------------------------------------ answers */
+
+/* The push landing: the answers are the main thing on screen, so they get full rows. */
+.answer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.answer-grid .btn-quiet {
+  grid-column: 1 / -1;
+  min-height: 44px;
+}
+
+/* Optional "How?" after a one-tap close: small, skippable, still a 44px target. */
+.chip {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.chip-on {
+  border-color: var(--ink);
+  color: var(--ink);
+}

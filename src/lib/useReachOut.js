@@ -89,6 +89,6 @@ export function pendingQuestion(how, name) {
 export function doneMessage(yes, name) {
   const first = firstName(name)
   return yes
-    ? `Lovely. Hope it turns into a real catch-up with ${first}.`
+    ? `Nice. Nudge will leave ${first} alone for a while.`
     : `No problem. ${first} stays on your list.`
 }

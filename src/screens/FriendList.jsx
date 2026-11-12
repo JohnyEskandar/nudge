@@ -251,6 +251,8 @@ export default function FriendList() {
                 cadenceDays={f.cadence_days}
                 busy={busyId === f.id}
                 onSnooze={(days) => onSnooze(f, days)}
+                friend={f}
+                onLetGo={load}
               />
             </>
           )}

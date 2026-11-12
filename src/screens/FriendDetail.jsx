@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   birthdayISO,
@@ -25,6 +25,8 @@ import {
 } from '../lib/format'
 import { useReachOut } from '../lib/useReachOut'
 import { logEvent } from '../lib/events'
+import { deferred } from '../lib/deferred'
+import { UNDO_MS } from '../lib/useAnswer'
 import ReachOutAction from '../components/ReachOutAction'
 import ReachOutPrompt from '../components/ReachOutPrompt'
 import AnswerCard from '../components/AnswerCard'
@@ -190,13 +192,32 @@ export default function FriendDetail() {
     setSavingEdit(false)
   }
 
-  async function onDeleteFriend() {
-    if (!confirm(`Remove ${friend.name} from your people? This can't be undone.`)) return
-    try {
-      await deleteFriend(id)
-      navigate('/', { replace: true })
-    } catch (err) {
-      setError(err.message)
+  // Undo beats confirm: removing waits a few seconds with an Undo, then goes through.
+  // Leaving the page in that window removes them at once, as asked.
+  const [removing, setRemoving] = useState(false)
+  const removal = useRef(null)
+  if (!removal.current) {
+    removal.current = deferred(async () => {
+      try {
+        await deleteFriend(id)
+        navigate('/', { replace: true })
+      } catch (err) {
+        setError(err.message)
+        setRemoving(false)
+      }
+    }, UNDO_MS)
+  }
+  useEffect(() => () => removal.current.flush(), [])
+
+  function onDeleteFriend() {
+    setRemoving(true)
+    removal.current.start(id)
+  }
+
+  function undoDelete() {
+    if (removal.current.undo()) {
+      logEvent('answer_undone', { friendId: id, props: { answer: 'remove' } })
+      setRemoving(false)
     }
   }
 
@@ -314,6 +335,7 @@ export default function FriendDetail() {
               friend={friend}
               itemId={fromPush}
               source="push"
+              prominent
               question={`Did you already reach ${friend.name.split(/\s+/)[0]}?`}
               onDone={onPushAnswered}
             />
@@ -333,7 +355,7 @@ export default function FriendDetail() {
             <ReachOutAction
               style={friend.nudge_style}
               phone={friend.phone}
-              primary
+              primary={!fromPush}
               busy={busyId === friend.id}
               onAct={(style) => reachOut(friend, style)}
             />
@@ -360,6 +382,8 @@ export default function FriendDetail() {
                 cadenceDays={friend.cadence_days}
                 busy={busyId === friend.id}
                 onSnooze={onSnooze}
+                friend={friend}
+                onLetGo={load}
               />
             )}
 
@@ -483,9 +507,18 @@ export default function FriendDetail() {
       </div>
 
       <div className="center" style={{ marginTop: 32 }}>
-        <button className="btn-danger-quiet" onClick={onDeleteFriend}>
-          Remove {friend.name}
-        </button>
+{removing ? (
+          <div className="notice" role="status">
+            <p style={{ marginTop: 0, marginBottom: 8 }}>Removing {friend.name}.</p>
+            <button className="btn-quiet" onClick={undoDelete}>
+              Undo
+            </button>
+          </div>
+        ) : (
+          <button className="btn-danger-quiet" onClick={onDeleteFriend}>
+            Remove {friend.name}
+          </button>
+        )}
       </div>
     </>
   )
