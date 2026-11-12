@@ -131,7 +131,7 @@ export default function Settings() {
         {prefs && (
           <>
             {FREQUENCIES.map((f) => (
-              <label key={f.value} className="row" style={{ gap: 8, marginBottom: 8 }}>
+              <label key={f.value} className="choice">
                 <input
                   type="radio"
                   name="frequency"
@@ -141,7 +141,7 @@ export default function Settings() {
                 {f.label}
               </label>
             ))}
-            <div className="field" style={{ marginTop: 12 }}>
+            <div className="field" style={{ marginTop: 16, marginBottom: 0 }}>
               <label htmlFor="startOn">Start nudging me on (optional)</label>
               <input
                 id="startOn"
@@ -153,7 +153,7 @@ export default function Settings() {
                 Setting up before a goodbye? Nudge stays quiet until this date.
               </p>
             </div>
-            {savedNote && <p className="muted">{savedNote}</p>}
+            {savedNote && <p className="muted" style={{ marginTop: 12 }}>{savedNote}</p>}
           </>
         )}
       </div>
@@ -202,7 +202,7 @@ export default function Settings() {
                 autoFocus
               />
             </div>
-            <div className="row">
+            <div className="btn-row">
               <button
                 className="btn"
                 onClick={onDelete}
