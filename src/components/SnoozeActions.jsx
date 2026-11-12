@@ -5,7 +5,7 @@
  */
 export default function SnoozeActions({ cadenceDays, busy, onSnooze }) {
   return (
-    <div className="row" style={{ marginTop: 12 }}>
+    <div className="quiet-row">
       <button className="btn-quiet" disabled={busy} onClick={() => onSnooze(3)}>
         Not now
       </button>

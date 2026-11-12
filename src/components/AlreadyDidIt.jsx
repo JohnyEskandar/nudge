@@ -9,13 +9,13 @@ export default function AlreadyDidIt({ friend, source, onDone }) {
   const [open, setOpen] = useState(false)
   if (!open) {
     return (
-      <button className="btn-quiet" onClick={() => setOpen(true)} style={{ marginTop: 12 }}>
+      <button className="btn-quiet" onClick={() => setOpen(true)} style={{ marginTop: 8 }}>
         Already did it
       </button>
     )
   }
   return (
-    <div style={{ marginTop: 12 }}>
+    <div style={{ marginTop: 12, marginBottom: 8 }}>
       <AnswerCard friend={friend} source={source} question="How did you get in touch?" onDone={onDone} />
     </div>
   )

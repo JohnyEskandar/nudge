@@ -45,27 +45,26 @@ export default function AnswerCard({ friend, question, source, itemId = null, on
 
   return (
     <div className="notice">
-      <p style={{ marginTop: 0 }}>
+      <p>
         <strong>{question ?? `Did you reach ${first}?`}</strong>
         {note && <span className="muted"> {note}</span>}
       </p>
       {error && <p className="error">{error}</p>}
-      <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+      <div className="answer-options">
         {YES.map((a) => (
           <button
             key={a.value}
             className="btn btn-secondary"
-            style={{ width: 'auto' }}
             disabled={busy}
             onClick={() => answer(a.value)}
           >
             {a.label}
           </button>
         ))}
-        <button className="btn-quiet" disabled={busy} onClick={() => answer('not_yet')}>
-          Not yet
-        </button>
       </div>
+      <button className="btn-quiet" disabled={busy} onClick={() => answer('not_yet')}>
+        Not yet
+      </button>
     </div>
   )
 }
