@@ -7,10 +7,22 @@
 
 export type Style = 'hang' | 'check_in' | 'call' | string
 
+// {name} is what the user calls them. Lines never count time or name the gap, and
+// several remind the user that one tap closes the nudge.
 export const BODY_LINES = [
   'A short hello is plenty. Already did it? Tap to say so.',
   'No reason needed, just a quick hello. Already talked? Tap to say so.',
   'They would probably love to hear from you. Already in touch? Tap to say so.',
+  '{name} might like hearing from you today.',
+  'A two-line text to {name} counts.',
+  'No big catch-up needed. Just say hi.',
+  'Got a minute? {name} is one tap away.',
+  'Saw something {name} would laugh at? Send it.',
+  'A voice note works too.',
+  'Ask {name} one question today.',
+  'Nothing clever to say? "Hey, how are you" still lands.',
+  'Already texted {name}? Tap to say so and Nudge goes quiet.',
+  '{name} would probably like a photo of your day.',
 ] as const
 
 export function titleFor(name: string, style: Style): string {
@@ -22,18 +34,21 @@ export function titleFor(name: string, style: Style): string {
 export function pushPayload(p: {
   friendId: string
   name: string
+  /** What the user calls them; used in place of the name when set. */
+  nickname?: string | null
   style: Style
   reason: 'overdue' | 'birthday'
   itemId: string
   /** Picks the body line; anything stable per send (for example the day number). */
   seed: number
 }) {
+  const name = p.nickname?.trim() || p.name
   const url = `/friend/${p.friendId}?n=${p.itemId}`
   const tag = `nudge-${p.friendId}`
 
   if (p.reason === 'birthday') {
     return {
-      title: `It's ${p.name}'s birthday`,
+      title: `It's ${name}'s birthday`,
       body: 'Say happy birthday. Already did? Tap to say so.',
       url,
       tag,
@@ -41,5 +56,5 @@ export function pushPayload(p: {
   }
 
   const i = ((Math.trunc(p.seed) % BODY_LINES.length) + BODY_LINES.length) % BODY_LINES.length
-  return { title: titleFor(p.name, p.style), body: BODY_LINES[i], url, tag }
+  return { title: titleFor(name, p.style), body: BODY_LINES[i].replaceAll('{name}', name), url, tag }
 }

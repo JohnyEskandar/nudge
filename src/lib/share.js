@@ -59,14 +59,32 @@ export const DRAFTS = {
     'Hey {first}, you crossed my mind today. How have you been?',
     "Hi {first}! What's been the best part of your month?",
     "Hey {first}, how's everything going with you?",
+    "Saw something that made me think of you. How's everything?",
+    "What's new with you? Give me the highlights.",
+    'Thinking of you. No rush to reply, just saying hi.',
+    'Quick one: how are you actually doing?',
+    'Random question: what are you watching lately?',
   ],
   hang: [
     'Hey {first}! Want to find a time to catch up soon?',
     'Hey {first}, how are you? Up for a call or a coffee sometime soon?',
+    'Free for a call this week? Would love to catch up properly.',
+    "Want to grab food when you're around?",
+    'Coffee or a call sometime soon? You pick.',
+  ],
+  family: [
+    "Hi {first}! Thinking of you. How's your week going?",
+    "Hey {first}, what's new at home?",
+    "Hi {first}, I'll call you later today. When's good?",
   ],
   // Mentors: thanks first, no ask (the early-career networkers' opener).
   mentor: [
     'Hi {first}, I was thinking about some advice you gave me and wanted to say thank you. How have you been?',
+    'Hi {first}, saw something that made me think of our conversation. Hope work is treating you well.',
+  ],
+  birthday: [
+    'Happy birthday, {first}! Hope this year is a great one.',
+    'Happy birthday, {first}! Hope you have a really good day.',
   ],
 }
 
@@ -77,11 +95,19 @@ export const DRAFTS = {
 export function composeMessage(
   name,
   style,
-  { category, nickname, seed = new Date().getDate() } = {},
+  { category, nickname, birthday = false, seed = new Date().getDate() } = {},
 ) {
-  const lines = category === 'mentor' ? DRAFTS.mentor : style === 'check_in' ? DRAFTS.check_in : DRAFTS.hang
+  const lines = DRAFTS[draftKind({ category, birthday_in_days: birthday ? 0 : null }, style)]
   const line = lines[((seed % lines.length) + lines.length) % lines.length]
   return line.replace('{first}', nickname?.trim() || firstName(name))
+}
+
+/** Which set of openers a person gets today: birthday on the day, then who they are, then style. */
+export function draftKind(friend, style) {
+  if (friend.birthday_in_days === 0) return 'birthday'
+  if (friend.category === 'mentor') return 'mentor'
+  if (friend.category === 'family') return 'family'
+  return style === 'check_in' ? 'check_in' : 'hang'
 }
 
 /**

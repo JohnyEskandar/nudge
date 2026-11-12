@@ -34,8 +34,20 @@ describe('pushPayload', () => {
     )
     expect(seen.size).toBe(BODY_LINES.length)
     expect(pushPayload({ ...base, style: 'hang', reason: 'overdue', seed: BODY_LINES.length }).body).toBe(
-      BODY_LINES[0],
+      pushPayload({ ...base, style: 'hang', reason: 'overdue', seed: 0 }).body,
     )
+  })
+
+  it('has a dozen lines, some naming the person, none left with a placeholder', () => {
+    expect(BODY_LINES.length).toBeGreaterThanOrEqual(12)
+    const bodies = BODY_LINES.map((_, i) => pushPayload({ ...base, style: 'hang', reason: 'overdue', seed: i }).body)
+    expect(bodies.some((b) => b.includes('Maya'))).toBe(true)
+    expect(bodies.every((b) => !b.includes('{'))).toBe(true)
+  })
+
+  it('uses what you call them', () => {
+    const p = pushPayload({ ...base, nickname: 'Mom', style: 'call', reason: 'overdue' })
+    expect(p.title).toBe('Give Mom a call')
   })
 
   it('never counts days, shames a gap or uses a long dash', () => {

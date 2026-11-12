@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { recordAnswer } from './api'
 import { logEvent } from './events'
-import { callName, composeMessage, shareMessage } from './share'
+import { callName, composeMessage, draftKind, shareMessage } from './share'
 
 /**
  * The reach-out loop, in one place for Today and the person's page.
@@ -39,9 +39,14 @@ export function useReachOut(onDone) {
         logEvent('call_tapped', { friendId: friend.id })
         setPending({ id: friend.id, how: 'called' })
       } else {
-        const how = await shareMessage(composeMessage(friend.name, style, { category: friend.category, nickname: friend.nickname }))
+        const draft = composeMessage(friend.name, style, {
+          category: friend.category,
+          nickname: friend.nickname,
+          birthday: friend.birthday_in_days === 0,
+        })
+        const how = await shareMessage(draft)
         if (how === 'cancelled') return
-        logEvent('share_opened', { friendId: friend.id, props: { how, style } })
+        logEvent('share_opened', { friendId: friend.id, props: { how, style, draft: draftKind(friend, style) } })
         setPending({ id: friend.id, how })
       }
     } catch (err) {
