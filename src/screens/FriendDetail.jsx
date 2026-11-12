@@ -32,6 +32,10 @@ import ReachOutAction from '../components/ReachOutAction'
 import ReachOutPrompt from '../components/ReachOutPrompt'
 import AnswerCard from '../components/AnswerCard'
 import AlreadyDidIt from '../components/AlreadyDidIt'
+import AskAbout from '../components/AskAbout'
+import PlanPicker from '../components/PlanPicker'
+import { waitingOnReply } from '../lib/leadOn'
+import { setReplyOutcome } from '../lib/api'
 import SnoozeActions from '../components/SnoozeActions'
 import FriendForm from '../components/FriendForm'
 
@@ -60,6 +64,7 @@ export default function FriendDetail() {
   const [error, setError] = useState(null)
 
   const [logging, setLogging] = useState(false)
+  const [planning, setPlanning] = useState(false)
   const [logDate, setLogDate] = useState(todayISO())
   const [logNote, setLogNote] = useState('')
   const [saving, setSaving] = useState(false)
@@ -247,6 +252,17 @@ export default function FriendDetail() {
 
   const due = dueLabel(friend.days_overdue)
   const cadenceChanged = cadenceDraft !== String(friend.cadence_days)
+  const waiting = waitingOnReply(interactions, todayISO())
+
+  async function onTheyWroteBack() {
+    setError(null)
+    try {
+      await setReplyOutcome(interactions[0], 'replied')
+      await load()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
 
   // Editing takes over the screen rather than sitting alongside the read-only view —
   // otherwise notes would be on the page twice, once editable and once not.
@@ -329,6 +345,15 @@ export default function FriendDetail() {
           <p className="starter">Last time: “{excerpt(friend.last_note)}”</p>
         )}
 
+        {waiting && (
+          <div className="row" style={{ marginTop: 12, flexWrap: 'wrap' }}>
+            <span className="tag">Waiting to hear back</span>
+            <button className="btn-quiet" style={{ minHeight: 44 }} onClick={onTheyWroteBack}>
+              They wrote back
+            </button>
+          </div>
+        )}
+
         <div className="spacer" />
 
         {fromPush && (
@@ -390,9 +415,26 @@ export default function FriendDetail() {
             )}
 
             <div className="spacer" />
-            <button className="btn-quiet" onClick={() => setLogging(true)}>
-              Log a catch-up that already happened
-            </button>
+            {planning ? (
+              <PlanPicker
+                friend={friend}
+                onCancel={() => setPlanning(false)}
+                onDone={async () => {
+                  setPlanning(false)
+                  await load()
+                }}
+              />
+            ) : (
+              <div className="row" style={{ flexWrap: 'wrap' }}>
+                <button className="btn-quiet" style={{ minHeight: 44 }} onClick={() => setPlanning(true)}>
+                  We made a plan
+                </button>
+                <button className="btn-quiet" style={{ minHeight: 44 }} onClick={() => setLogging(true)}>
+                  Log a catch-up that already happened
+                </button>
+              </div>
+            )}
+            <AskAbout friend={friend} onSaved={load} />
           </>
         ) : (
           <form onSubmit={onLog}>

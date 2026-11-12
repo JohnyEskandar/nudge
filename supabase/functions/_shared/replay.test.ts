@@ -31,7 +31,7 @@ function people(n: number, due: number): FriendRow[] {
   }))
 }
 
-function replay(friends: FriendRow[], frequency: Frequency, seed: number, days = 14) {
+function replay(friends: FriendRow[], frequency: Frequency, seed: number, days = 14, reasonArm = false) {
   const random = mulberry32(seed)
   let id = 0
   let open: OpenEpisode[] = []
@@ -50,7 +50,7 @@ function replay(friends: FriendRow[], frequency: Frequency, seed: number, days =
         openEpisodes: open,
         recentItems: items.filter((i) => daysBetween(i.local_date, today) <= 14),
       },
-      { random, newId: () => `x${++id}` },
+      { random, newId: () => `x${++id}`, reasonArm },
     )
     const closed = new Set(decision.close.map((c) => c.id))
     open = open.filter((e) => !closed.has(e.id)).concat(decision.newEpisodes)
@@ -114,5 +114,23 @@ describe('14-day replay', () => {
     const share = held / total
     expect(share).toBeGreaterThan(0.2)
     expect(share).toBeLessThan(0.3)
+  })
+
+  it('switching on the reason arm leaves the holdout share and the cap alone', () => {
+    let held = 0
+    let total = 0
+    let reason = 0
+    for (let seed = 1; seed <= 200; seed++) {
+      const { episodes, pushes } = replay(people(65, 64), 'few_weekly', seed, 14, true)
+      held += episodes.filter((e) => e.assignment === 'holdout').length
+      reason += episodes.filter((e) => e.copy_variant === 'reason').length
+      total += episodes.length
+      expect(pushes.length).toBeLessThanOrEqual(7)
+      assertNoRepeatWithinSeven(pushes)
+    }
+    expect(held / total).toBeGreaterThan(0.2)
+    expect(held / total).toBeLessThan(0.3)
+    expect(reason / total).toBeGreaterThan(0.4)
+    expect(reason / total).toBeLessThan(0.6)
   })
 })

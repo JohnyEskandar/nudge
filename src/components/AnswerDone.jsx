@@ -1,3 +1,5 @@
+import AskAbout from './AskAbout'
+
 /**
  * After an answer: what it bought (quiet), Undo while the answer is still being held,
  * and, after a bare "Already did it", an optional "How?" that costs nothing to skip.
@@ -8,7 +10,7 @@ const HOW = [
   { value: 'saw_them', label: 'Saw them' },
 ]
 
-export default function AnswerDone({ message, answer, askHow = false }) {
+export default function AnswerDone({ message, answer, askHow = false, friend }) {
   return (
     <div className="notice" role="status">
       <p style={{ marginTop: 0, marginBottom: answer.phase === 'pending' || askHow ? 8 : 0 }}>
@@ -30,10 +32,11 @@ export default function AnswerDone({ message, answer, askHow = false }) {
         </div>
       )}
       {answer.phase === 'pending' && (
-        <button className="btn-quiet" onClick={answer.undo}>
+        <button className="btn-quiet" style={{ minHeight: 44 }} onClick={answer.undo}>
           Undo
         </button>
       )}
+      {friend && answer.answer !== 'not_yet' && <AskAbout friend={friend} />}
     </div>
   )
 }

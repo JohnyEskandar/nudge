@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { listFriends, listRecentItems, snoozeFriend } from '../lib/api'
+import { listFriends, listOpenPlans, listRecentInteractions, listRecentItems, snoozeFriend } from '../lib/api'
 import { birthdayLabel, dueLabel, excerpt } from '../lib/format'
 import { firstName } from '../lib/share'
 import { useReachOut } from '../lib/useReachOut'
 import { localDate } from '../lib/events'
 import { pendingConfirm } from '../lib/confirm'
 import { recallFor } from '../lib/recall'
+import { pendingPlan, pendingReply } from '../lib/leadOn'
 import ReachOutAction from '../components/ReachOutAction'
 import ReachOutPrompt from '../components/ReachOutPrompt'
 import AlreadyDidIt from '../components/AlreadyDidIt'
 import ConfirmCard from '../components/ConfirmCard'
 import RecallCard from '../components/RecallCard'
+import ReplyCard from '../components/ReplyCard'
+import PlanCard from '../components/PlanCard'
 import SnoozeActions from '../components/SnoozeActions'
 import PushOptIn from '../components/PushOptIn'
 import { ONBOARDED_KEY } from './Onboarding'
@@ -52,6 +55,8 @@ function nextUp(upcoming) {
 export default function FriendList() {
   const [friends, setFriends] = useState(null)
   const [items, setItems] = useState([])
+  const [recent, setRecent] = useState([])
+  const [plans, setPlans] = useState([])
   const [loadError, setLoadError] = useState(null)
   const [pickerReady, setPickerReady] = useState(false)
   const navigate = useNavigate()
@@ -59,9 +64,16 @@ export default function FriendList() {
   const load = useCallback(async () => {
     try {
       // The nudge record is a nicety on this screen; Today must still load without it.
-      const [f, i] = await Promise.all([listFriends(), listRecentItems().catch(() => [])])
+      const [f, i, r, p] = await Promise.all([
+        listFriends(),
+        listRecentItems().catch(() => []),
+        listRecentInteractions().catch(() => []),
+        listOpenPlans().catch(() => []),
+      ])
       setFriends(f)
       setItems(i)
+      setRecent(r)
+      setPlans(p)
     } catch (e) {
       setLoadError(e.message)
     }
@@ -147,6 +159,11 @@ export default function FriendList() {
   const today = localDate()
   const recall = friends ? recallFor(items, friends, today) : null
   const confirmable = friends && !recall ? pendingConfirm(items, friends, today) : null
+  // One question at a time: the recall, then yesterday's nudge, then how a plan went,
+  // then whether a text got a reply.
+  const planAsk = friends && !recall && !confirmable ? pendingPlan(plans, friends, today) : null
+  const replyAsk =
+    friends && !recall && !confirmable && !planAsk ? pendingReply(recent, friends, today) : null
 
   return (
     <>
@@ -193,6 +210,8 @@ export default function FriendList() {
       {confirmable && (
         <ConfirmCard key={confirmable.item.id} pending={confirmable} onDone={load} />
       )}
+      {planAsk && <PlanCard key={planAsk.plan.id} pending={planAsk} onDone={load} />}
+      {replyAsk && <ReplyCard key={replyAsk.interaction.id} pending={replyAsk} onDone={load} />}
 
       {friends?.length === 0 && (
         <div className="empty">

@@ -20,7 +20,7 @@ export default function AnswerCard({ friend, question, source, itemId = null, on
   const first = callName(friend)
 
   if (a.phase !== 'idle') {
-    return <AnswerDone message={quietMessage(a.answer, first)} answer={a} />
+    return <AnswerDone message={quietMessage(a.answer, first)} answer={a} friend={friend} />
   }
 
   return (

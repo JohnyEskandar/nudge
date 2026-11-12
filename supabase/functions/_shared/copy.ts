@@ -36,6 +36,10 @@ export function pushPayload(p: {
   name: string
   /** What the user calls them; used in place of the name when set. */
   nickname?: string | null
+  /** The episode's H2 arm. 'reason' uses askAbout when there is one. */
+  copyVariant?: 'plain' | 'reason'
+  /** "Next time, ask about..." in the user's own words. */
+  askAbout?: string | null
   style: Style
   reason: 'overdue' | 'birthday'
   itemId: string
@@ -52,9 +56,29 @@ export function pushPayload(p: {
       body: 'Say happy birthday. Already did? Tap to say so.',
       url,
       tag,
+      copyUsed: 'plain' as const,
+    }
+  }
+
+  // The H2 reason arm: a specific thing to ask about. Without one, the push is plain and
+  // records that it was, so the readout compares what people actually saw.
+  const ask = p.askAbout?.trim()
+  if (p.copyVariant === 'reason' && ask) {
+    return {
+      title: titleFor(name, p.style),
+      body: `Maybe ask ${name} about ${ask}. Already in touch? Tap to say so.`,
+      url,
+      tag,
+      copyUsed: 'reason' as const,
     }
   }
 
   const i = ((Math.trunc(p.seed) % BODY_LINES.length) + BODY_LINES.length) % BODY_LINES.length
-  return { title: titleFor(name, p.style), body: BODY_LINES[i].replaceAll('{name}', name), url, tag }
+  return {
+    title: titleFor(name, p.style),
+    body: BODY_LINES[i].replaceAll('{name}', name),
+    url,
+    tag,
+    copyUsed: 'plain' as const,
+  }
 }

@@ -12,7 +12,7 @@ export default function AlreadyDidIt({ friend, source, onDone }) {
   if (a.phase !== 'idle') {
     return (
       <div style={{ marginTop: 12 }}>
-        <AnswerDone message={quietMessage(a.answer, callName(friend))} answer={a} askHow />
+        <AnswerDone message={quietMessage(a.answer, callName(friend))} answer={a} askHow friend={friend} />
       </div>
     )
   }

@@ -61,4 +61,23 @@ describe('pushPayload', () => {
       expect(line).not.toMatch(/a while|overdue|been too long/i)
     }
   })
+
+  it('reason arm: suggests what to ask about, in the user\'s words', () => {
+    const p = pushPayload({ ...base, style: 'check_in', reason: 'overdue', copyVariant: 'reason', askAbout: 'the new job' })
+    expect(p.body).toBe('Maybe ask Maya Okonkwo about the new job. Already in touch? Tap to say so.')
+    expect(p.copyUsed).toBe('reason')
+  })
+
+  it('reason arm with nothing to ask about falls back to plain, and says so', () => {
+    const p = pushPayload({ ...base, style: 'check_in', reason: 'overdue', copyVariant: 'reason', askAbout: null })
+    expect(BODY_LINES.map((l) => l.replaceAll('{name}', 'Maya Okonkwo'))).toContain(p.body)
+    expect(p.copyUsed).toBe('plain')
+  })
+
+  it('plain arm never uses the ask-about line', () => {
+    const p = pushPayload({ ...base, style: 'check_in', reason: 'overdue', copyVariant: 'plain', askAbout: 'the new job' })
+    expect(p.body).not.toMatch(/new job/)
+    expect(p.copyUsed).toBe('plain')
+  })
 })
+
