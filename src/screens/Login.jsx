@@ -129,7 +129,7 @@ export default function Login() {
           </button>
         </form>
 
-        <p className="muted center" style={{ marginTop: 20 }}>
+        <p className="muted center" style={{ marginTop: 24 }}>
           On a computer you can just tap the link in the email.
         </p>
 
@@ -148,7 +148,7 @@ export default function Login() {
   }
 
   return (
-    <div style={{ paddingTop: 72 }}>
+    <div style={{ paddingTop: 64 }}>
       <h1>Nudge</h1>
       <p className="sub">
         For the people you&rsquo;d miss: family, old friends, the ones who moved away.
@@ -161,7 +161,7 @@ export default function Login() {
         Continue with Google
       </button>
 
-      <p className="muted center" style={{ marginTop: 20 }}>
+      <p className="muted center" style={{ marginTop: 24 }}>
         No password, nothing to remember.
       </p>
 

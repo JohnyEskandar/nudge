@@ -9,7 +9,7 @@ export default function ReachOutPrompt({ friend, pending, done, busy, onConfirm 
   if (pending?.id !== friend.id) return null
   return (
     <div className="notice">
-      <p style={{ marginTop: 0 }}>
+      <p>
         <strong>{pendingQuestion(pending.how, friend)}</strong>
       </p>
       <div className="row">

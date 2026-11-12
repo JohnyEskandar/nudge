@@ -15,7 +15,7 @@ const YES = [
  * never invents contact. The question and the four answers are what the test reads, so
  * they stay exactly as they are.
  */
-export default function AnswerCard({ friend, question, source, itemId = null, onDone, note, prominent }) {
+export default function AnswerCard({ friend, question, source, itemId = null, onDone, note }) {
   const a = useAnswer(friend, { source, itemId, onDone })
   const first = callName(friend)
 
@@ -25,26 +25,21 @@ export default function AnswerCard({ friend, question, source, itemId = null, on
 
   return (
     <div className="notice">
-      <p style={{ marginTop: 0 }}>
+      <p>
         <strong>{question ?? `Did you reach ${first}?`}</strong>
         {note && <span className="muted"> {note}</span>}
       </p>
       {a.error && <p className="error">{a.error}</p>}
-      <div className={prominent ? 'answer-grid' : 'row'} style={prominent ? undefined : { flexWrap: 'wrap', gap: 8 }}>
+      <div className="answer-options">
         {YES.map((y) => (
-          <button
-            key={y.value}
-            className="btn btn-secondary"
-            style={prominent ? undefined : { width: 'auto' }}
-            onClick={() => a.give(y.value)}
-          >
+          <button key={y.value} className="btn btn-secondary" onClick={() => a.give(y.value)}>
             {y.label}
           </button>
         ))}
-        <button className="btn-quiet" onClick={() => a.give('not_yet')}>
-          Not yet
-        </button>
       </div>
+      <button className="btn-quiet" onClick={() => a.give('not_yet')}>
+        Not yet
+      </button>
     </div>
   )
 }

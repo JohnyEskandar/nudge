@@ -32,13 +32,8 @@ export default function ConsentSheet({ userId, onAccept }) {
         the app is used, never names or notes, and sometimes holds a nudge back at random to
         compare fairly.
       </p>
-      <label className="row consent-check" style={{ gap: 12, alignItems: 'flex-start', minHeight: 44 }}>
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={(e) => setChecked(e.target.checked)}
-          style={{ width: 24, height: 24, marginTop: 2 }}
-        />
+      <label className="choice consent-check">
+        <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} />
         <span>
           I&rsquo;m 13 or older, and I agree to the <Link to="/terms">Terms</Link> and{' '}
           <Link to="/privacy">Privacy</Link> policy.

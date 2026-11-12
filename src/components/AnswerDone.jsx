@@ -13,11 +13,9 @@ const HOW = [
 export default function AnswerDone({ message, answer, askHow = false, friend }) {
   return (
     <div className="notice" role="status">
-      <p style={{ marginTop: 0, marginBottom: answer.phase === 'pending' || askHow ? 8 : 0 }}>
-        {message}
-      </p>
+      <p>{message}</p>
       {askHow && answer.answer !== 'not_yet' && (
-        <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
+        <div className="chips">
           <span className="muted">How?</span>
           {HOW.map((h) => (
             <button
@@ -31,9 +29,9 @@ export default function AnswerDone({ message, answer, askHow = false, friend }) 
           ))}
         </div>
       )}
-      <div className="row" style={{ flexWrap: 'wrap', gap: 16 }}>
+      <div className="quiet-row">
         {answer.phase === 'pending' && (
-          <button className="btn-quiet" style={{ minHeight: 44 }} onClick={answer.undo}>
+          <button className="btn-quiet" onClick={answer.undo}>
             Undo
           </button>
         )}

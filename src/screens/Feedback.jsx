@@ -120,7 +120,7 @@ export default function Feedback() {
         </button>
       </form>
 
-      <p className="muted center" style={{ marginTop: 20 }}>
+      <p className="muted center" style={{ marginTop: 24 }}>
         Sent with your browser and notification settings, so a bug report makes sense
         without you having to explain your phone.
       </p>

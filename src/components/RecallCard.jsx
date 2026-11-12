@@ -50,18 +50,18 @@ export default function RecallCard({ recall, onDone }) {
 
   return (
     <div className="notice" style={{ marginBottom: 16 }}>
-      <p style={{ marginTop: 0 }}>
+      <p>
         <strong>Who did you talk to this week?</strong> Any way counts: a text, a call, in
         person.
       </p>
       {error && <p className="error">{error}</p>}
       {recall.people.map(({ friend }) => (
-        <label key={friend.id} className="row" style={{ gap: 8, marginBottom: 8 }}>
+        <label key={friend.id} className="choice">
           <input type="checkbox" checked={ticked.has(friend.id)} onChange={() => toggle(friend.id)} />
           {friend.name}
         </label>
       ))}
-      <button className="btn" style={{ width: 'auto' }} disabled={busy} onClick={submit}>
+      <button className="btn" style={{ marginTop: 12 }} disabled={busy} onClick={submit}>
         {busy ? 'Saving…' : ticked.size ? 'Done' : 'None of them'}
       </button>
     </div>

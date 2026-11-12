@@ -284,7 +284,7 @@ export default function FriendDetail() {
             hint={cadenceHint(friend, draft.category)}
           />
 
-          <div className="row">
+          <div className="btn-row">
             <button className="btn" type="submit" disabled={savingEdit || !draft.name.trim()}>
               {savingEdit ? 'Saving…' : 'Save changes'}
             </button>
@@ -307,10 +307,10 @@ export default function FriendDetail() {
         ← People
       </button>
 
-      <div className="header" style={{ marginBottom: 20 }}>
+      <div className="header" style={{ marginBottom: 24 }}>
         <div>
           <h1 style={{ marginBottom: 8 }}>{friend.name}</h1>
-          <div className="row" style={{ gap: 8 }}>
+          <div className="tags">
             <span className="tag">{friend.category}</span>
             {friend.city && <span className="tag">{friend.city}</span>}
             {friend.birthday_month && (
@@ -346,9 +346,9 @@ export default function FriendDetail() {
         )}
 
         {waiting && (
-          <div className="row" style={{ marginTop: 12, flexWrap: 'wrap' }}>
+          <div className="quiet-row" style={{ marginTop: 12, alignItems: 'center' }}>
             <span className="tag tag-state">Waiting to hear back</span>
-            <button className="btn-quiet" style={{ minHeight: 44 }} onClick={onTheyWroteBack}>
+            <button className="btn-quiet" onClick={onTheyWroteBack}>
               They wrote back
             </button>
           </div>
@@ -362,7 +362,6 @@ export default function FriendDetail() {
               friend={friend}
               itemId={fromPush}
               source="push"
-              prominent
               question={`Did you already reach ${callName(friend)}?`}
               onDone={onPushAnswered}
             />
@@ -388,7 +387,7 @@ export default function FriendDetail() {
             />
 
             {/* Some weeks a hang friend just gets a text, and a call friend a message. */}
-            <div className="row" style={{ marginTop: 12 }}>
+            <div className="btn-row" style={{ marginTop: 8 }}>
               {NUDGE_STYLES.filter((s) => s !== friend.nudge_style).map((s) => (
                 <ReachOutAction
                   key={s}
@@ -425,11 +424,11 @@ export default function FriendDetail() {
                 }}
               />
             ) : (
-              <div className="row" style={{ flexWrap: 'wrap' }}>
-                <button className="btn-quiet" style={{ minHeight: 44 }} onClick={() => setPlanning(true)}>
+              <div className="quiet-row">
+                <button className="btn-quiet" onClick={() => setPlanning(true)}>
                   We made a plan
                 </button>
-                <button className="btn-quiet" style={{ minHeight: 44 }} onClick={() => setLogging(true)}>
+                <button className="btn-quiet" onClick={() => setLogging(true)}>
                   Log a catch-up that already happened
                 </button>
               </div>
@@ -458,7 +457,7 @@ export default function FriendDetail() {
                 placeholder="Caught up over coffee. She's moving in March."
               />
             </div>
-            <div className="row">
+            <div className="btn-row">
               <button className="btn" type="submit" disabled={saving}>
                 {saving ? 'Saving…' : 'Save'}
               </button>
@@ -516,7 +515,7 @@ export default function FriendDetail() {
       {friend.notes && (
         <div className="card" style={{ marginBottom: 16 }}>
           <h2>Notes</h2>
-          <p style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 15 }}>{friend.notes}</p>
+          <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{friend.notes}</p>
         </div>
       )}
 

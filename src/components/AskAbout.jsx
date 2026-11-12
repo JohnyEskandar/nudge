@@ -13,11 +13,11 @@ export default function AskAbout({ friend, onSaved, startOpen = false }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
-  if (saved) return <p className="muted" style={{ margin: '8px 0 0' }}>Saved for next time.</p>
+  if (saved) return <p className="muted">Saved for next time.</p>
 
   if (!open) {
     return (
-      <button className="btn-quiet" style={{ minHeight: 44 }} onClick={() => setOpen(true)}>
+      <button className="btn-quiet" onClick={() => setOpen(true)}>
         {friend.ask_about ? `Next time: ask about ${friend.ask_about}` : 'Add something to ask next time'}
       </button>
     )
@@ -38,7 +38,7 @@ export default function AskAbout({ friend, onSaved, startOpen = false }) {
   }
 
   return (
-    <form onSubmit={save} style={{ marginTop: 8 }}>
+    <form onSubmit={save} style={{ marginTop: 8, width: '100%' }}>
       <div className="field">
         <label htmlFor={`ask-${friend.id}`}>Next time, ask {callName(friend)} about</label>
         <input
@@ -49,12 +49,10 @@ export default function AskAbout({ friend, onSaved, startOpen = false }) {
           onChange={(e) => setText(e.target.value)}
           placeholder="the new job, the trip, her exams"
         />
-        <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
-          Only you see this. It may show in your own nudges.
-        </p>
+        <p className="muted">Only you see this. It may show in your own nudges.</p>
       </div>
       {error && <p className="error">{error}</p>}
-      <button className="btn btn-secondary" style={{ width: 'auto' }} disabled={busy}>
+      <button className="btn btn-secondary" disabled={busy}>
         {busy ? 'Saving…' : 'Save it'}
       </button>
     </form>

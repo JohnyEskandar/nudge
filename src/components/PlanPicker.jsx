@@ -38,12 +38,12 @@ export default function PlanPicker({ friend, onDone, onCancel }) {
         />
       </div>
       {error && <p className="error">{error}</p>}
-      <div className="row">
-        <button className="btn" style={{ width: 'auto' }} disabled={busy || !date} onClick={save}>
+      <div className="btn-row">
+        <button className="btn btn-secondary" disabled={busy || !date} onClick={save}>
           {busy ? 'Saving…' : 'Save the plan'}
         </button>
         {onCancel && (
-          <button className="btn-quiet" onClick={onCancel}>
+          <button className="btn btn-secondary" onClick={onCancel}>
             Cancel
           </button>
         )}

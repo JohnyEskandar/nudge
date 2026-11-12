@@ -42,7 +42,7 @@ export default function ReplyCard({ pending, onDone }) {
 
   return (
     <div className="notice" style={{ marginBottom: 16 }}>
-      <p style={{ marginTop: 0 }}>
+      <p>
         <strong>Did {name} write back?</strong>
       </p>
       {error && <p className="error">{error}</p>}
@@ -56,20 +56,24 @@ export default function ReplyCard({ pending, onDone }) {
           }}
         />
       ) : (
-        <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
-          <button className="btn btn-secondary" style={{ width: 'auto' }} onClick={() => answer('replied')}>
-            Yes
-          </button>
-          <button className="btn btn-secondary" style={{ width: 'auto' }} onClick={() => answer('replied', 'plan')}>
-            We made a plan
-          </button>
-          <button className="btn-quiet" style={{ minHeight: 44 }} onClick={() => answer('not_yet')}>
-            Not yet
-          </button>
-          <button className="btn-quiet" style={{ minHeight: 44 }} onClick={() => answer('no_reply')}>
-            No reply
-          </button>
-        </div>
+        <>
+          <div className="btn-row">
+            <button className="btn btn-secondary" onClick={() => answer('replied')}>
+              Yes
+            </button>
+            <button className="btn btn-secondary" onClick={() => answer('replied', 'plan')}>
+              We made a plan
+            </button>
+          </div>
+          <div className="quiet-row">
+            <button className="btn-quiet" onClick={() => answer('not_yet')}>
+              Not yet
+            </button>
+            <button className="btn-quiet" onClick={() => answer('no_reply')}>
+              No reply
+            </button>
+          </div>
+        </>
       )}
     </div>
   )

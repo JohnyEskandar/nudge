@@ -130,7 +130,12 @@ export default function Onboarding() {
 
           <LastTalkedField value={lastTalked} onChange={setLastTalked} />
 
-          <button className="btn btn-secondary" type="submit" disabled={saving || !name.trim()}>
+          {/* The filled button is the next step: adding, until "Done adding" takes over. */}
+          <button
+            className={added.length ? 'btn btn-secondary' : 'btn'}
+            type="submit"
+            disabled={saving || !name.trim()}
+          >
             {saving ? 'Adding…' : 'Add to my people'}
           </button>
         </form>
@@ -187,12 +192,12 @@ export default function Onboarding() {
         </p>
 
         <div className="card push-preview">
-          <div className="push-preview-app">NUDGE · now</div>
+          <div className="push-preview-app">Nudge · now</div>
           <div className="push-preview-title">{nudgeTitle(first.name, style)}</div>
           <div className="push-preview-body">{BODY_LINES[0]}</div>
         </div>
 
-        <p className="muted" style={{ marginTop: 20 }}>
+        <p className="muted" style={{ marginTop: 24 }}>
           Nobody fought and nothing happened: life just got busy. A small hello is
           usually all it takes, and they&rsquo;ll probably be glad you went first.
         </p>

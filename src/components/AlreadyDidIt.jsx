@@ -20,7 +20,7 @@ export default function AlreadyDidIt({ friend, source, onDone }) {
   return (
     <>
       {a.error && <p className="error">{a.error}</p>}
-      <button className="btn btn-secondary" style={{ marginTop: 12 }} onClick={() => a.give('talked')}>
+      <button className="btn btn-secondary" style={{ marginTop: 8 }} onClick={() => a.give('talked')}>
         Already did it
       </button>
     </>

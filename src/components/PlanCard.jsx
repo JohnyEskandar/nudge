@@ -37,19 +37,17 @@ export default function PlanCard({ pending, onDone }) {
 
   return (
     <div className="notice" style={{ marginBottom: 16 }}>
-      <p style={{ marginTop: 0 }}>
+      <p>
         <strong>How was your plan with {name}?</strong>{' '}
         <span className="muted">({formatDate(plan.on_date)})</span>
       </p>
       {error && <p className="error">{error}</p>}
-      <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
-        <button className="btn btn-secondary" style={{ width: 'auto' }} disabled={busy} onClick={() => answer('happened')}>
-          It happened
-        </button>
-        <button className="btn-quiet" style={{ minHeight: 44 }} disabled={busy} onClick={() => answer('didnt_happen')}>
-          It didn&rsquo;t happen
-        </button>
-      </div>
+      <button className="btn btn-secondary" disabled={busy} onClick={() => answer('happened')}>
+        It happened
+      </button>
+      <button className="btn-quiet" disabled={busy} onClick={() => answer('didnt_happen')}>
+        It didn&rsquo;t happen
+      </button>
     </div>
   )
 }

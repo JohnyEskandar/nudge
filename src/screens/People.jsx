@@ -41,11 +41,11 @@ export default function People() {
 
       {friends?.length === 0 && (
         <div className="empty">
-          <p>Who would you miss?</p>
+          <p className="empty-title">Who would you miss?</p>
           <p className="muted">
             Add them here: family, old friends, anyone you&rsquo;d hate to lose touch with.
           </p>
-          <button className="btn-quiet" onClick={() => navigate('/import')}>
+          <button className="btn btn-secondary" onClick={() => navigate('/import')}>
             Add several at once
           </button>
         </div>
@@ -70,16 +70,18 @@ export default function People() {
       })}
 
       {friends?.length > 0 && (
-        <div className="center" style={{ marginTop: 24 }}>
+        <div className="center" style={{ marginTop: 16 }}>
           <button className="btn-quiet" onClick={() => navigate('/import')}>
             Add several at once
           </button>
         </div>
       )}
 
-      <button className="btn add-fab" onClick={() => navigate('/add')}>
-        + Add someone
-      </button>
+      <div className="add-bar">
+        <button className="btn" onClick={() => navigate('/add')}>
+          Add someone
+        </button>
+      </div>
     </>
   )
 }

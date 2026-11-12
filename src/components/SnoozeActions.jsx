@@ -27,7 +27,7 @@ export default function SnoozeActions({ cadenceDays, busy, onSnooze, friend, onL
   if (letting) {
     return (
       <div className="notice" role="status" style={{ marginTop: 12 }}>
-        <p style={{ marginTop: 0, marginBottom: 8 }}>
+        <p>
           Okay. Nudge won&rsquo;t bring up {callName(friend)} again. You can switch it
           back on their page.
         </p>
@@ -47,7 +47,7 @@ export default function SnoozeActions({ cadenceDays, busy, onSnooze, friend, onL
   }
 
   return (
-    <div className="row" style={{ marginTop: 12, flexWrap: 'wrap' }}>
+    <div className="quiet-row">
       <button className="btn-quiet" disabled={busy} onClick={() => onSnooze(3)}>
         Not now
       </button>
