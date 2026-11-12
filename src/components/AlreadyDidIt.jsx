@@ -6,8 +6,17 @@ import AnswerDone from './AnswerDone'
  * For the reach-out that happened in Messages, where the app can't see it: one tap closes
  * the nudge. How it happened is optional, afterwards.
  */
-export default function AlreadyDidIt({ friend, source, onDone }) {
+export default function AlreadyDidIt({ friend, source, onDone, onClose }) {
   const a = useAnswer(friend, { source, onDone })
+
+  // Today: the card leaves the list at once and the list shows the message (ClosingBar).
+  if (onClose) {
+    return (
+      <button className="btn btn-secondary" style={{ marginTop: 8 }} onClick={() => onClose(friend)}>
+        Already did it
+      </button>
+    )
+  }
 
   if (a.phase !== 'idle') {
     return (

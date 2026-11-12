@@ -10,7 +10,7 @@ const HOW = [
   { value: 'saw_them', label: 'Saw them' },
 ]
 
-export default function AnswerDone({ message, answer, askHow = false, friend }) {
+export default function AnswerDone({ message, answer, askHow = false, friend, onDismiss }) {
   return (
     <div className="notice" role="status">
       <p>{message}</p>
@@ -35,7 +35,12 @@ export default function AnswerDone({ message, answer, askHow = false, friend }) 
             Undo
           </button>
         )}
-        {friend && answer.answer !== 'not_yet' && <AskAbout friend={friend} />}
+        {friend && answer.answer !== 'not_yet' && <AskAbout key={friend.id} friend={friend} />}
+        {onDismiss && (
+          <button className="btn-quiet" onClick={onDismiss}>
+            OK
+          </button>
+        )}
       </div>
     </div>
   )

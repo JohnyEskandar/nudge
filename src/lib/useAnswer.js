@@ -12,11 +12,16 @@ export const UNDO_MS = 5000
  * chosen later, it is logged as answer_detail.
  *
  * phase: 'idle' | 'pending' | 'saved'
+ *
+ * `friend` may be null when one hook serves a whole list (Today): then each give()
+ * names who it is about, and a new one records any answer still held for someone else.
  */
 export function useAnswer(friend, { source, itemId = null, onDone } = {}) {
   const [phase, setPhase] = useState('idle')
   const [answer, setAnswer] = useState(null)
   const [error, setError] = useState(null)
+  const [who, setWho] = useState(friend)
+  const whoRef = useRef(friend)
   const onDoneRef = useRef(onDone)
   onDoneRef.current = onDone
 
@@ -24,7 +29,7 @@ export function useAnswer(friend, { source, itemId = null, onDone } = {}) {
   if (!ctl.current) {
     ctl.current = deferred(async (value) => {
       try {
-        await recordAnswer(friend.id, value, { source, itemId })
+        await recordAnswer(whoRef.current.id, value, { source, itemId })
         setPhase('saved')
         await onDoneRef.current?.(value)
       } catch (err) {
@@ -44,7 +49,12 @@ export function useAnswer(friend, { source, itemId = null, onDone } = {}) {
     }
   }, [])
 
-  function give(value) {
+  function give(value, person) {
+    if (person && person.id !== whoRef.current?.id) {
+      ctl.current.flush()
+      whoRef.current = person
+      setWho(person)
+    }
     setError(null)
     setAnswer(value)
     setPhase('pending')
@@ -53,7 +63,7 @@ export function useAnswer(friend, { source, itemId = null, onDone } = {}) {
 
   function undo() {
     if (ctl.current.undo()) {
-      logEvent('answer_undone', { friendId: friend.id, itemId, props: { answer, source } })
+      logEvent('answer_undone', { friendId: whoRef.current.id, itemId, props: { answer, source } })
       setAnswer(null)
       setPhase('idle')
     }
@@ -64,11 +74,18 @@ export function useAnswer(friend, { source, itemId = null, onDone } = {}) {
       setAnswer(value)
       return
     }
-    logEvent('answer_detail', { friendId: friend.id, itemId, props: { answer: value, source } })
+    logEvent('answer_detail', { friendId: whoRef.current.id, itemId, props: { answer: value, source } })
     setAnswer(value)
   }
 
-  return { phase, answer, error, give, undo, detail }
+  /** Put the message away once it has been read. */
+  function dismiss() {
+    ctl.current.flush()
+    setPhase('idle')
+    setAnswer(null)
+  }
+
+  return { phase, answer, error, friend: who, give, undo, detail, dismiss }
 }
 
 /** What closing a nudge buys: quiet. */
