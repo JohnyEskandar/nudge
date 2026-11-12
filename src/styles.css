@@ -133,17 +133,7 @@ h2 {
 }
 
 .status.due {
-  color: var(--overdue);
-}
-
-.dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--overdue);
-  margin-right: 6px;
-  vertical-align: middle;
+  color: var(--ink);
 }
 
 /* ------------------------------------------------------------------ forms */

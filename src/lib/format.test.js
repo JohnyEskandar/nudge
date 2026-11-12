@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { dueLabel } from './format'
+import { dueLabel, lastContactLabel } from './format'
 
 describe('dueLabel', () => {
   it('never counts how late you are', () => {
@@ -15,5 +15,16 @@ describe('dueLabel', () => {
   })
   it('says plainly when nudges are off for someone', () => {
     expect(dueLabel(null)).toEqual({ text: 'No nudges', due: false })
+  })
+})
+
+describe('lastContactLabel', () => {
+  it('names the day, never a count of days', () => {
+    const label = lastContactLabel('2026-11-03')
+    expect(label).toMatch(/^Last in touch /)
+    expect(label).not.toMatch(/ago|days?\b/i)
+  })
+  it('says plainly when nothing is logged yet', () => {
+    expect(lastContactLabel(null)).toBe('Nothing logged yet')
   })
 })

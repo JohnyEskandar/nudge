@@ -5,7 +5,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 const { SUPABASE_URL, SERVICE_ROLE_KEY, VITE_VAPID_PUBLIC_KEY: KEY } = process.env
-const APP = 'https://nudge-blush.vercel.app'
+// Never the live app: this script deletes the seed user's subscriptions and opens
+// browsers that subscribe again. Point it at a preview or local build explicitly.
+const APP = process.env.NUDGE_APP_URL
+if (!APP || APP.includes('nudge-blush.vercel.app')) {
+  throw new Error('Set NUDGE_APP_URL to a preview or local URL; this script never runs against production.')
+}
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } })
 const { data: l } = await admin.auth.admin.listUsers({ perPage: 1000 })
 const user = l.users.find((u) => u.email === 'seed@nudge.test')

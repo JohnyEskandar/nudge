@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { listFriends, listRecentItems, snoozeFriend } from '../lib/api'
-import { birthdayLabel, dueLabel, excerpt, lastContactLabel } from '../lib/format'
+import { birthdayLabel, dueLabel, excerpt } from '../lib/format'
 import { firstName } from '../lib/share'
 import { useReachOut } from '../lib/useReachOut'
 import { localDate } from '../lib/events'
@@ -216,15 +216,11 @@ export default function FriendList() {
               <span className="status due">🎂 {birthdayLabel(f.birthday_in_days)}</span>
             ) : (
               <span className="status due">
-                <span className="dot" />
                 {dueLabel(f.days_overdue).text}
               </span>
             )}
           </div>
-          <div className="friend-meta">
-            {lastContactLabel(f.days_since_contact, Boolean(f.last_interaction_date))}
-            {f.city ? ` · ${f.city}` : ''}
-          </div>
+          {f.city && <div className="friend-meta">{f.city}</div>}
 
           {f.last_note && <p className="starter">Last time: “{excerpt(f.last_note)}”</p>}
 

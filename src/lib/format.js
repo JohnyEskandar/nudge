@@ -11,11 +11,13 @@ export function dueLabel(daysOverdue) {
   return { text: `In ${plural(-daysOverdue, 'day')}`, due: false }
 }
 
-export function lastContactLabel(daysSince, hasInteraction) {
-  const prefix = hasInteraction ? 'Last spoke' : 'Added'
-  if (daysSince === 0) return `${prefix} today`
-  if (daysSince === 1) return `${prefix} yesterday`
-  return `${prefix} ${plural(daysSince, 'day')} ago`
+/**
+ * When you were last in touch, as a day ("Last in touch Nov 3"), never as a count of days:
+ * a number that grows is a guilt meter. Only a real logged contact counts.
+ */
+export function lastContactLabel(lastInteractionDate) {
+  if (!lastInteractionDate) return 'Nothing logged yet'
+  return `Last in touch ${formatDate(lastInteractionDate)}`
 }
 
 export function plural(n, word) {

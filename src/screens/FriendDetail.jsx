@@ -291,10 +291,9 @@ export default function FriendDetail() {
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="friend-top">
           <span className="muted">
-            {lastContactLabel(friend.days_since_contact, Boolean(friend.last_interaction_date))}
+            {lastContactLabel(friend.last_interaction_date)}
           </span>
           <span className={due.due ? 'status due' : 'status'}>
-            {due.due && <span className="dot" />}
             {due.text}
           </span>
         </div>

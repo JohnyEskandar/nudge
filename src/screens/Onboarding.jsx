@@ -72,9 +72,9 @@ export default function Onboarding() {
       <>
         <h1>Who would you miss?</h1>
         <p className="sub">
-          Start with five. A parent, a grandparent, a brother or sister, an old best friend,
-          the friend who moved away. You can add more later, and nobody is told
-          they&rsquo;re on your list.
+          Start with the 3 to 8 people you&rsquo;d miss most: a parent, a grandparent, a
+          brother or sister, an old best friend, the friend who moved away. You can add more
+          later, and nobody is told they&rsquo;re on your list.
         </p>
 
         {error && <div className="error">{error}</div>}
@@ -199,8 +199,8 @@ export default function Onboarding() {
     <>
       <h1>One last thing</h1>
       <p className="sub">
-        A nudge is no use if it can&rsquo;t reach you. These nudges are the only
-        notifications Nudge sends.
+        A nudge is no use if it can&rsquo;t reach you. Nudge sends these nudges and, once in
+        a long while, a short note about the app itself. Nothing else.
       </p>
 
       <PushOptIn />
