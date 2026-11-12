@@ -32,7 +32,7 @@ export default function ConsentSheet({ userId, onAccept }) {
         the app is used, never names or notes, and sometimes holds a nudge back at random to
         compare fairly.
       </p>
-      <label className="row" style={{ gap: 12, alignItems: 'flex-start', minHeight: 44 }}>
+      <label className="row consent-check" style={{ gap: 12, alignItems: 'flex-start', minHeight: 44 }}>
         <input
           type="checkbox"
           checked={checked}

@@ -31,12 +31,14 @@ export default function AnswerDone({ message, answer, askHow = false, friend }) 
           ))}
         </div>
       )}
-      {answer.phase === 'pending' && (
-        <button className="btn-quiet" style={{ minHeight: 44 }} onClick={answer.undo}>
-          Undo
-        </button>
-      )}
-      {friend && answer.answer !== 'not_yet' && <AskAbout friend={friend} />}
+      <div className="row" style={{ flexWrap: 'wrap', gap: 16 }}>
+        {answer.phase === 'pending' && (
+          <button className="btn-quiet" style={{ minHeight: 44 }} onClick={answer.undo}>
+            Undo
+          </button>
+        )}
+        {friend && answer.answer !== 'not_yet' && <AskAbout friend={friend} />}
+      </div>
     </div>
   )
 }

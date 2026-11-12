@@ -524,3 +524,25 @@ a.btn {
 .legal li {
   margin-bottom: 8px;
 }
+
+.legal a,
+.consent-check a {
+  color: var(--accent);
+}
+
+/* A sentence you agree to, not a field label: normal weight, full size. */
+.consent-check {
+  font-weight: 400;
+  font-size: 16px;
+  color: var(--ink);
+}
+
+/* Three answers side by side on a phone: less side padding so "Saw them" fits. */
+.answer-grid .btn {
+  padding: 12px 8px;
+}
+
+/* A state, not a category: written in sentence case. */
+.tag-state {
+  text-transform: none;
+}

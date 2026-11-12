@@ -347,7 +347,7 @@ export default function FriendDetail() {
 
         {waiting && (
           <div className="row" style={{ marginTop: 12, flexWrap: 'wrap' }}>
-            <span className="tag">Waiting to hear back</span>
+            <span className="tag tag-state">Waiting to hear back</span>
             <button className="btn-quiet" style={{ minHeight: 44 }} onClick={onTheyWroteBack}>
               They wrote back
             </button>
