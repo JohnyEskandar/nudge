@@ -196,17 +196,17 @@ export default function FriendList() {
 
       {friends?.length === 0 && (
         <div className="empty">
-          <p>Who would you miss?</p>
+          <p className="empty-title">Who would you miss?</p>
           <p className="muted">
             Add them here: family, old friends, anyone you&rsquo;d hate to lose touch with.
           </p>
-          <button className="btn-quiet" onClick={() => navigate('/import')}>
+          <button className="btn btn-secondary" onClick={() => navigate('/import')}>
             Add several at once
           </button>
         </div>
       )}
 
-      {due.map((f) => (
+      {due.map((f, i) => (
         <div className="card" key={f.id} style={{ marginBottom: 12 }}>
           <div className="friend-top">
             <Link className="friend-name" to={`/friend/${f.id}`}>
@@ -243,7 +243,8 @@ export default function FriendList() {
               <ReachOutAction
                 style={f.nudge_style}
                 phone={f.phone}
-                primary
+                // One filled button per screen: the person at the top.
+                primary={i === 0}
                 busy={busyId === f.id}
                 onAct={(style) => reachOut(f, style)}
               />
@@ -273,9 +274,11 @@ export default function FriendList() {
         </Link>
       )}
 
-      <button className="btn add-fab" onClick={() => navigate('/add')}>
-        + Add someone
-      </button>
+      <div className="add-bar">
+        <button className="btn btn-secondary" onClick={() => navigate('/add')}>
+          Add someone
+        </button>
+      </div>
     </>
   )
 }
