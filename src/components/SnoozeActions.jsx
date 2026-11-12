@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { setPaused } from '../lib/api'
 import { deferred } from '../lib/deferred'
 import { logEvent } from '../lib/events'
-import { firstName } from '../lib/share'
+import { callName } from '../lib/share'
 import { UNDO_MS } from '../lib/useAnswer'
 
 /**
@@ -28,7 +28,7 @@ export default function SnoozeActions({ cadenceDays, busy, onSnooze, friend, onL
     return (
       <div className="notice" role="status" style={{ marginTop: 12 }}>
         <p style={{ marginTop: 0, marginBottom: 8 }}>
-          Okay. Nudge won&rsquo;t bring up {firstName(friend.name)} again. You can switch it
+          Okay. Nudge won&rsquo;t bring up {callName(friend)} again. You can switch it
           back on their page.
         </p>
         <button

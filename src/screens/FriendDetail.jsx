@@ -13,7 +13,8 @@ import {
   snoozeFriend,
   updateFriend,
 } from '../lib/api'
-import { NUDGE_STYLES } from '../lib/share'
+import { callName, NUDGE_STYLES } from '../lib/share'
+import { rhythmLabel, rhythmOptions } from '../lib/rhythm'
 import {
   birthdayLabel,
   dueLabel,
@@ -43,8 +44,8 @@ function cadenceHint(friend, draftCategory) {
 
   const cadenceIsStillDefault = friend.cadence_days === DEFAULT_CADENCE[friend.category]
   return cadenceIsStillDefault
-    ? `Saving also moves the reminder to every ${DEFAULT_CADENCE[draftCategory]} days.`
-    : `Your ${friend.cadence_days}-day reminder stays as it is.`
+    ? `Saving also changes how often to: ${rhythmLabel(DEFAULT_CADENCE[draftCategory]).toLowerCase()}.`
+    : `How often stays as you set it: ${rhythmLabel(friend.cadence_days).toLowerCase()}.`
 }
 
 export default function FriendDetail() {
@@ -164,6 +165,7 @@ export default function FriendDetail() {
   function startEditing() {
     setDraft({
       name: friend.name,
+      nickname: friend.nickname ?? '',
       category: friend.category,
       nudgeStyle: friend.nudge_style,
       phone: friend.phone ?? '',
@@ -336,7 +338,7 @@ export default function FriendDetail() {
               itemId={fromPush}
               source="push"
               prominent
-              question={`Did you already reach ${friend.name.split(/\s+/)[0]}?`}
+              question={`Did you already reach ${callName(friend)}?`}
               onDone={onPushAnswered}
             />
           </div>
@@ -431,18 +433,19 @@ export default function FriendDetail() {
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <h2>Remind me every</h2>
+        <h2>How often you want to catch up</h2>
         <div className="row">
-          <input
-            type="number"
-            min="1"
-            max="3650"
+          <select
             value={cadenceDraft}
             onChange={(e) => setCadenceDraft(e.target.value)}
-            style={{ width: 100 }}
-            aria-label="Cadence in days"
-          />
-          <span className="muted">days</span>
+            aria-label="How often you want to catch up"
+          >
+            {rhythmOptions(friend.cadence_days).map((r) => (
+              <option key={r.days} value={r.days}>
+                {r.label}
+              </option>
+            ))}
+          </select>
           {cadenceChanged && (
             <button
               className="btn"

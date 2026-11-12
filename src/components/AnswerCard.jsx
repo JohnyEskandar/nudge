@@ -1,4 +1,4 @@
-import { firstName } from '../lib/share'
+import { callName } from '../lib/share'
 import { quietMessage, useAnswer } from '../lib/useAnswer'
 import AnswerDone from './AnswerDone'
 
@@ -17,7 +17,7 @@ const YES = [
  */
 export default function AnswerCard({ friend, question, source, itemId = null, onDone, note, prominent }) {
   const a = useAnswer(friend, { source, itemId, onDone })
-  const first = firstName(friend.name)
+  const first = callName(friend)
 
   if (a.phase !== 'idle') {
     return <AnswerDone message={quietMessage(a.answer, first)} answer={a} />

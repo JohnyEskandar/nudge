@@ -28,6 +28,22 @@ export function firstName(name) {
 }
 
 /**
+ * What to call someone in a draft or a question: their nickname when you gave one ("Mom",
+ * "An"), otherwise the first word of their name. The first word is wrong for names that
+ * put the family name first, which is what the nickname is for.
+ */
+export function callName(friend) {
+  return friend.nickname?.trim() || firstName(friend.name)
+}
+
+/** "How do you usually reach them?", over the stored nudge_style values. */
+export const REACH = [
+  { style: 'check_in', label: 'Text them' },
+  { style: 'call', label: 'Call them' },
+  { style: 'hang', label: 'Meet up' },
+]
+
+/**
  * The title the push will actually use, shown during onboarding so the promise the app
  * makes is the promise it keeps. One function for both, so they cannot drift.
  */
@@ -58,10 +74,14 @@ export const DRAFTS = {
  * The draft that goes into the share sheet. `seed` picks the opener (the day of the
  * month by default, so it changes as the days do).
  */
-export function composeMessage(name, style, { category, seed = new Date().getDate() } = {}) {
+export function composeMessage(
+  name,
+  style,
+  { category, nickname, seed = new Date().getDate() } = {},
+) {
   const lines = category === 'mentor' ? DRAFTS.mentor : style === 'check_in' ? DRAFTS.check_in : DRAFTS.hang
   const line = lines[((seed % lines.length) + lines.length) % lines.length]
-  return line.replace('{first}', firstName(name))
+  return line.replace('{first}', nickname?.trim() || firstName(name))
 }
 
 /**

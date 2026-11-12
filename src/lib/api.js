@@ -3,22 +3,8 @@ import { DEFAULT_FREQUENCY } from '../../supabase/functions/_shared/pick.ts'
 import { eventContext, localDate, logEvent } from './events'
 import { planSchedule } from './schedule'
 
-export const CATEGORIES = ['friend', 'mentor', 'family', 'abroad']
-
-export const DEFAULT_CADENCE = {
-  friend: 60,
-  mentor: 90,
-  family: 30,
-  abroad: 45,
-}
-
-/** Mirrors default_style_for() in the database, which fills this in if we don't. */
-export const DEFAULT_STYLE = {
-  friend: 'hang',
-  mentor: 'check_in',
-  family: 'call',
-  abroad: 'check_in',
-}
+export { CATEGORIES, DEFAULT_CADENCE, DEFAULT_STYLE } from './categories'
+import { DEFAULT_CADENCE, DEFAULT_STYLE } from './categories'
 
 function unwrap({ data, error }) {
   if (error) throw new Error(error.message)
@@ -46,7 +32,9 @@ export async function getFriend(id) {
 
 export async function addFriend({
   name,
+  nickname,
   category,
+  cadence,
   city,
   notes,
   phone,
@@ -67,6 +55,7 @@ export async function addFriend({
       .insert({
         user_id: userId,
         name: name.trim(),
+        nickname: nickname?.trim() || null,
         category,
         city: city?.trim() || null,
         notes: notes?.trim() || null,
@@ -77,9 +66,19 @@ export async function addFriend({
       .single(),
   )
 
-  await scheduleOrUndo([friend], [{ friend, lastTalked }])
+  // The trigger seeds the category's rhythm; a different one chosen at add replaces it
+  // before the first due date is worked out from it.
+  const rhythm = cadence ?? DEFAULT_CADENCE[category]
+  if (rhythm !== DEFAULT_CADENCE[category]) {
+    await supabase.from('reminder_settings').update({ cadence_days: rhythm }).eq('friend_id', friend.id)
+  }
+
+  await scheduleOrUndo([friend], [{ friend, lastTalked, cadence: rhythm }])
   if (birthday) await saveBirthday(friend.id, birthday)
-  logEvent('friend_added', { friendId: friend.id, props: { source, category, last_talked: lastTalked } })
+  logEvent('friend_added', {
+    friendId: friend.id,
+    props: { source, category, cadence: rhythm, style: friend.nudge_style, last_talked: lastTalked, nickname: Boolean(friend.nickname) },
+  })
   return friend
 }
 
@@ -158,9 +157,9 @@ async function scheduleNew(entries) {
 
   const newIds = new Set(entries.map((e) => e.friend.id))
   const plan = planSchedule(
-    entries.map(({ friend, lastTalked }) => ({
+    entries.map(({ friend, lastTalked, cadence }) => ({
       key: friend.id,
-      cadence: DEFAULT_CADENCE[friend.category],
+      cadence: cadence ?? DEFAULT_CADENCE[friend.category],
       lastTalked,
     })),
     {
@@ -312,7 +311,7 @@ export function birthdayISO(friend) {
  */
 export async function updateFriend(
   id,
-  { name, category, city, notes, phone, nudgeStyle, birthday },
+  { name, nickname, category, city, notes, phone, nudgeStyle, birthday },
   previous,
 ) {
   const friend = unwrap(
@@ -320,6 +319,7 @@ export async function updateFriend(
       .from('friends')
       .update({
         name: name.trim(),
+        nickname: nickname?.trim() || null,
         category,
         city: city?.trim() || null,
         notes: notes?.trim() || null,
