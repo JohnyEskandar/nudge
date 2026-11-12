@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import { logEvent } from './lib/events'
 import { permissionState } from './lib/push'
@@ -12,6 +12,10 @@ import Feedback from './screens/Feedback'
 import AddFriend from './screens/AddFriend'
 import Import from './screens/Import'
 import FriendDetail from './screens/FriendDetail'
+import Privacy from './screens/Privacy'
+import Terms from './screens/Terms'
+import ConsentSheet from './components/ConsentSheet'
+import { consentKey } from './lib/consent'
 
 /**
  * Each time a signed-in user opens the app: once at load, and again whenever an installed
@@ -23,9 +27,13 @@ function logOpen(resumed) {
   logEvent('push_permission', { props: { state: permissionState() } })
 }
 
+const PUBLIC_PATHS = new Set(['/privacy', '/terms'])
+
 export default function App() {
   const [session, setSession] = useState(null)
   const [ready, setReady] = useState(false)
+  const [consented, setConsented] = useState(null) // null until read for this user
+  const location = useLocation()
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -41,6 +49,15 @@ export default function App() {
   }, [])
 
   const signedIn = Boolean(session)
+  const userId = session?.user?.id
+  useEffect(() => {
+    if (!userId) return
+    try {
+      setConsented(Boolean(localStorage.getItem(consentKey(userId))))
+    } catch {
+      setConsented(false)
+    }
+  }, [userId])
   useEffect(() => {
     if (!signedIn) return
     logOpen(false)
@@ -59,10 +76,38 @@ export default function App() {
     )
   }
 
+  // The policy and terms are readable by anyone, signed in or not.
+  if (PUBLIC_PATHS.has(location.pathname)) {
+    return (
+      <div className="app">
+        <Routes>
+          <Route path="/privacy" element={<Privacy />} />
+          <Route path="/terms" element={<Terms />} />
+        </Routes>
+      </div>
+    )
+  }
+
   if (!session) {
     return (
       <div className="app">
         <Login />
+      </div>
+    )
+  }
+
+  if (consented === null) {
+    return (
+      <div className="app">
+        <div className="loading">…</div>
+      </div>
+    )
+  }
+
+  if (!consented) {
+    return (
+      <div className="app">
+        <ConsentSheet userId={session.user.id} onAccept={() => setConsented(true)} />
       </div>
     )
   }

@@ -165,6 +165,10 @@ export default function Login() {
         No password, nothing to remember.
       </p>
 
+      <p className="muted center">
+        <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a>
+      </p>
+
       {!showEmail && (
         <button className="btn btn-secondary" onClick={() => setShowEmail(true)}>
           Use email instead

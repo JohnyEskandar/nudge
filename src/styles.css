@@ -504,3 +504,23 @@ a.btn {
   border-color: var(--ink);
   color: var(--ink);
 }
+
+/* ------------------------------------------------------------------ legal pages */
+
+.legal {
+  max-width: 62ch;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.legal h2 {
+  margin-top: 32px;
+}
+
+.legal ul {
+  padding-left: 24px;
+}
+
+.legal li {
+  margin-bottom: 8px;
+}

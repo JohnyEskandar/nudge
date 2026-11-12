@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { deleteAccount, getUserSettings, saveUserSettings } from '../lib/api'
 import { FREQUENCIES } from '../lib/frequency'
 import { logEvent } from '../lib/events'
@@ -174,6 +174,10 @@ export default function Settings() {
           {busy === 'signout' ? 'Signing out…' : 'Sign out'}
         </button>
       </div>
+
+      <p className="muted center" style={{ marginBottom: 16 }}>
+        <Link to="/privacy">Privacy</Link> · <Link to="/terms">Terms</Link>
+      </p>
 
       <div className="card">
         <h2>Delete account</h2>
