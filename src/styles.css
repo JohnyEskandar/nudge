@@ -753,3 +753,65 @@ a.btn {
     animation: none !important;
   }
 }
+
+/* ------------------------------------------------------------------ closing a nudge */
+
+/* The optional "How?" after a one-tap close: small, skippable, still a 44px target. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s-2);
+  margin-bottom: var(--s-2);
+}
+
+.chip {
+  min-height: 44px;
+  padding: 0 var(--s-4);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 15px;
+  cursor: pointer;
+  transition: border-color var(--t-hover-out) var(--ease);
+}
+
+.chip-on {
+  border-color: var(--ink);
+  color: var(--ink);
+}
+
+/* A state, not a category: written in sentence case. */
+.tag-state {
+  text-transform: none;
+}
+
+/* ------------------------------------------------------------------ privacy, terms, consent */
+
+.legal h2 {
+  margin-top: var(--s-6);
+}
+
+.legal ul {
+  padding-left: var(--s-5);
+  max-width: 62ch;
+}
+
+.legal li {
+  margin-bottom: var(--s-2);
+}
+
+.legal a,
+.consent-check a {
+  color: var(--accent-text);
+}
+
+.consent-check {
+  align-items: flex-start;
+  padding: var(--s-2) 0;
+}
+
+.consent-check input {
+  margin-top: var(--s-1);
+}

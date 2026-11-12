@@ -1,22 +1,37 @@
-import { useState } from 'react'
-import AnswerCard from './AnswerCard'
+import { callName } from '../lib/share'
+import { quietMessage, useAnswer } from '../lib/useAnswer'
+import AnswerDone from './AnswerDone'
 
 /**
- * For the reach-out that happened in Messages, where the app can't see it: one quiet
- * button that opens the same answers the push and the next-open card use.
+ * For the reach-out that happened in Messages, where the app can't see it: one tap closes
+ * the nudge. How it happened is optional, afterwards.
  */
-export default function AlreadyDidIt({ friend, source, onDone }) {
-  const [open, setOpen] = useState(false)
-  if (!open) {
+export default function AlreadyDidIt({ friend, source, onDone, onClose }) {
+  const a = useAnswer(friend, { source, onDone })
+
+  // Today: the card leaves the list at once and the list shows the message (ClosingBar).
+  if (onClose) {
     return (
-      <button className="btn-quiet" onClick={() => setOpen(true)} style={{ marginTop: 8 }}>
+      <button className="btn btn-secondary" style={{ marginTop: 8 }} onClick={() => onClose(friend)}>
         Already did it
       </button>
     )
   }
+
+  if (a.phase !== 'idle') {
+    return (
+      <div style={{ marginTop: 12 }}>
+        <AnswerDone message={quietMessage(a.answer, callName(friend))} answer={a} askHow friend={friend} />
+      </div>
+    )
+  }
+
   return (
-    <div style={{ marginTop: 12, marginBottom: 8 }}>
-      <AnswerCard friend={friend} source={source} question="How did you get in touch?" onDone={onDone} />
-    </div>
+    <>
+      {a.error && <p className="error">{a.error}</p>}
+      <button className="btn btn-secondary" style={{ marginTop: 8 }} onClick={() => a.give('talked')}>
+        Already did it
+      </button>
+    </>
   )
 }

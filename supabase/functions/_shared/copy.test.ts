@@ -34,8 +34,20 @@ describe('pushPayload', () => {
     )
     expect(seen.size).toBe(BODY_LINES.length)
     expect(pushPayload({ ...base, style: 'hang', reason: 'overdue', seed: BODY_LINES.length }).body).toBe(
-      BODY_LINES[0],
+      pushPayload({ ...base, style: 'hang', reason: 'overdue', seed: 0 }).body,
     )
+  })
+
+  it('has a dozen lines, some naming the person, none left with a placeholder', () => {
+    expect(BODY_LINES.length).toBeGreaterThanOrEqual(12)
+    const bodies = BODY_LINES.map((_, i) => pushPayload({ ...base, style: 'hang', reason: 'overdue', seed: i }).body)
+    expect(bodies.some((b) => b.includes('Maya'))).toBe(true)
+    expect(bodies.every((b) => !b.includes('{'))).toBe(true)
+  })
+
+  it('uses what you call them', () => {
+    const p = pushPayload({ ...base, nickname: 'Mom', style: 'call', reason: 'overdue' })
+    expect(p.title).toBe('Give Mom a call')
   })
 
   it('never counts days, shames a gap or uses a long dash', () => {
@@ -49,4 +61,23 @@ describe('pushPayload', () => {
       expect(line).not.toMatch(/a while|overdue|been too long/i)
     }
   })
+
+  it('reason arm: suggests what to ask about, in the user\'s words', () => {
+    const p = pushPayload({ ...base, style: 'check_in', reason: 'overdue', copyVariant: 'reason', askAbout: 'the new job' })
+    expect(p.body).toBe('Maybe ask Maya Okonkwo about the new job. Already in touch? Tap to say so.')
+    expect(p.copyUsed).toBe('reason')
+  })
+
+  it('reason arm with nothing to ask about falls back to plain, and says so', () => {
+    const p = pushPayload({ ...base, style: 'check_in', reason: 'overdue', copyVariant: 'reason', askAbout: null })
+    expect(BODY_LINES.map((l) => l.replaceAll('{name}', 'Maya Okonkwo'))).toContain(p.body)
+    expect(p.copyUsed).toBe('plain')
+  })
+
+  it('plain arm never uses the ask-about line', () => {
+    const p = pushPayload({ ...base, style: 'check_in', reason: 'overdue', copyVariant: 'plain', askAbout: 'the new job' })
+    expect(p.body).not.toMatch(/new job/)
+    expect(p.copyUsed).toBe('plain')
+  })
 })
+

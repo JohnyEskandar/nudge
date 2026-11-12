@@ -58,13 +58,12 @@ export default function People() {
             <div className="friend-top">
               <span className="friend-name">{f.name}</span>
               <span className={due.due ? 'status due' : 'status'}>
-                {due.due && <span className="dot" />}
-                {due.text}
+                                {due.text}
               </span>
             </div>
             <div className="friend-meta">
-              {lastContactLabel(f.days_since_contact, Boolean(f.last_interaction_date))}
-              {f.city ? ` · ${f.city}` : ''} · every {f.cadence_days} days
+              {lastContactLabel(f.last_interaction_date)}
+              {f.city ? ` · ${f.city}` : ''}
             </div>
           </Link>
         )

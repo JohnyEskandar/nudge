@@ -4,6 +4,8 @@ import { CATEGORIES, DEFAULT_CADENCE, addFriends, listFriends } from '../lib/api
 import { markDuplicates, parseContacts, pickContacts, pickerSupport } from '../lib/contacts'
 import PickerSetup, { PICKER_PENDING_KEY } from '../components/PickerSetup'
 import LastTalkedField from '../components/LastTalkedField'
+import { CATEGORY_LABEL } from '../lib/categories'
+import { rhythmLabel } from '../lib/rhythm'
 
 const PLACEHOLDER = `Maya Okonkwo
 Sam Okafor +1 555 010 1234
@@ -180,13 +182,13 @@ export default function Import() {
             <select id="batch" value={category} onChange={(e) => onBatchCategory(e.target.value)}>
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
-                  {c[0].toUpperCase() + c.slice(1)}
+                  {CATEGORY_LABEL[c]}
                 </option>
               ))}
             </select>
             <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
-              They come up about every {DEFAULT_CADENCE[category]} days. Change anyone
-              below, or any of them later.
+              They come up {rhythmLabel(DEFAULT_CADENCE[category]).toLowerCase()}. Change
+              anyone below, or any of them later.
             </p>
           </div>
 
@@ -230,7 +232,7 @@ export default function Import() {
               >
                 {CATEGORIES.map((c) => (
                   <option key={c} value={c}>
-                    {c[0].toUpperCase() + c.slice(1)}
+                    {CATEGORY_LABEL[c]}
                   </option>
                 ))}
               </select>

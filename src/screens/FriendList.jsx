@@ -1,17 +1,23 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { listFriends, listRecentItems, snoozeFriend } from '../lib/api'
-import { birthdayLabel, dueLabel, excerpt, lastContactLabel } from '../lib/format'
+import { listFriends, listOpenPlans, listRecentInteractions, listRecentItems, snoozeFriend } from '../lib/api'
+import { birthdayLabel, dueLabel, excerpt } from '../lib/format'
 import { firstName } from '../lib/share'
 import { useReachOut } from '../lib/useReachOut'
 import { localDate } from '../lib/events'
 import { pendingConfirm } from '../lib/confirm'
+import { onToday } from '../lib/due'
 import { recallFor } from '../lib/recall'
+import { pendingPlan, pendingReply } from '../lib/leadOn'
 import ReachOutAction from '../components/ReachOutAction'
 import ReachOutPrompt from '../components/ReachOutPrompt'
 import AlreadyDidIt from '../components/AlreadyDidIt'
+import ClosingBar from '../components/ClosingBar'
+import { useAnswer } from '../lib/useAnswer'
 import ConfirmCard from '../components/ConfirmCard'
 import RecallCard from '../components/RecallCard'
+import ReplyCard from '../components/ReplyCard'
+import PlanCard from '../components/PlanCard'
 import SnoozeActions from '../components/SnoozeActions'
 import PushOptIn from '../components/PushOptIn'
 import { ONBOARDED_KEY } from './Onboarding'
@@ -52,6 +58,8 @@ function nextUp(upcoming) {
 export default function FriendList() {
   const [friends, setFriends] = useState(null)
   const [items, setItems] = useState([])
+  const [recent, setRecent] = useState([])
+  const [plans, setPlans] = useState([])
   const [loadError, setLoadError] = useState(null)
   const [pickerReady, setPickerReady] = useState(false)
   const navigate = useNavigate()
@@ -59,9 +67,16 @@ export default function FriendList() {
   const load = useCallback(async () => {
     try {
       // The nudge record is a nicety on this screen; Today must still load without it.
-      const [f, i] = await Promise.all([listFriends(), listRecentItems().catch(() => [])])
+      const [f, i, r, p] = await Promise.all([
+        listFriends(),
+        listRecentItems().catch(() => []),
+        listRecentInteractions().catch(() => []),
+        listOpenPlans().catch(() => []),
+      ])
       setFriends(f)
       setItems(i)
+      setRecent(r)
+      setPlans(p)
     } catch (e) {
       setLoadError(e.message)
     }
@@ -116,6 +131,11 @@ export default function FriendList() {
 
   const { reachOut, confirm, busyId, pending, done, error, setError } = useReachOut(load)
 
+  // "Already did it" on Today: one answer at a time, held for Undo by the list itself, so
+  // the person can leave the list the moment it is tapped.
+  const closer = useAnswer(null, { source: 'today', onDone: load })
+  const closingId = closer.phase !== 'idle' ? closer.friend?.id : null
+
   async function onSnooze(friend, days) {
     setError(null)
     try {
@@ -131,7 +151,9 @@ export default function FriendList() {
   // of new nudges, to measure what a nudge changes) stays off Today too, or the app
   // would still be nudging them.
   const allDue = (
-    friends?.filter((f) => !f.held_out && (f.days_overdue >= 0 || birthdaySoon(f))) ?? []
+    friends?.filter(
+      (f) => f.id !== closingId && onToday(f),
+    ) ?? []
   ).sort(
     (a, b) => {
       if (birthdaySoon(a) !== birthdaySoon(b)) return birthdaySoon(a) ? -1 : 1
@@ -147,6 +169,11 @@ export default function FriendList() {
   const today = localDate()
   const recall = friends ? recallFor(items, friends, today) : null
   const confirmable = friends && !recall ? pendingConfirm(items, friends, today) : null
+  // One question at a time: the recall, then yesterday's nudge, then how a plan went,
+  // then whether a text got a reply.
+  const planAsk = friends && !recall && !confirmable ? pendingPlan(plans, friends, today) : null
+  const replyAsk =
+    friends && !recall && !confirmable && !planAsk ? pendingReply(recent, friends, today) : null
 
   return (
     <>
@@ -189,10 +216,14 @@ export default function FriendList() {
 
       {friends === null && <div className="loading">Loading…</div>}
 
+      <ClosingBar closer={closer} />
+
       {recall && <RecallCard key={recall.week} recall={recall} onDone={load} />}
       {confirmable && (
         <ConfirmCard key={confirmable.item.id} pending={confirmable} onDone={load} />
       )}
+      {planAsk && <PlanCard key={planAsk.plan.id} pending={planAsk} onDone={load} />}
+      {replyAsk && <ReplyCard key={replyAsk.interaction.id} pending={replyAsk} onDone={load} />}
 
       {friends?.length === 0 && (
         <div className="empty">
@@ -216,15 +247,11 @@ export default function FriendList() {
               <span className="status due">🎂 {birthdayLabel(f.birthday_in_days)}</span>
             ) : (
               <span className="status due">
-                <span className="dot" />
                 {dueLabel(f.days_overdue).text}
               </span>
             )}
           </div>
-          <div className="friend-meta">
-            {lastContactLabel(f.days_since_contact, Boolean(f.last_interaction_date))}
-            {f.city ? ` · ${f.city}` : ''}
-          </div>
+          {f.city && <div className="friend-meta">{f.city}</div>}
 
           {f.last_note && <p className="starter">Last time: “{excerpt(f.last_note)}”</p>}
 
@@ -249,13 +276,15 @@ export default function FriendList() {
                 onAct={(style) => reachOut(f, style)}
               />
 
-              <AlreadyDidIt friend={f} source="today" onDone={load} />
+              <AlreadyDidIt friend={f} source="today" onClose={(who) => closer.give('talked', who)} />
 
               {/* Birthdays too: "not this week" has to be sayable about anyone on Today. */}
               <SnoozeActions
                 cadenceDays={f.cadence_days}
                 busy={busyId === f.id}
                 onSnooze={(days) => onSnooze(f, days)}
+                friend={f}
+                onLetGo={load}
               />
             </>
           )}

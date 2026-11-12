@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { recordAnswer } from '../lib/api'
-import { firstName } from '../lib/share'
+import { callName } from '../lib/share'
+import { quietMessage, useAnswer } from '../lib/useAnswer'
+import AnswerDone from './AnswerDone'
 
 const YES = [
   { value: 'texted', label: 'Texted' },
@@ -9,38 +9,18 @@ const YES = [
 ]
 
 /**
- * "Did you reach Maya?" with the four answers. One tap records it, from whichever door
- * it was asked at (the push landing, the next-open card, "Already did it" on Today or the
- * person's page). A yes lets the person rest; "Not yet" is kept as an answer too, and
- * never invents contact.
+ * "Did you reach Maya?" with the four answers. One tap answers, from whichever door it
+ * was asked at (the push landing or the next-open card); a few seconds of Undo replace
+ * any "Are you sure?". A yes lets the person rest; "Not yet" is kept as an answer too, and
+ * never invents contact. The question and the four answers are what the test reads, so
+ * they stay exactly as they are.
  */
 export default function AnswerCard({ friend, question, source, itemId = null, onDone, note }) {
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(null)
-  const [answered, setAnswered] = useState(null)
+  const a = useAnswer(friend, { source, itemId, onDone })
+  const first = callName(friend)
 
-  async function answer(value) {
-    setBusy(true)
-    setError(null)
-    try {
-      await recordAnswer(friend.id, value, { source, itemId })
-      setAnswered(value)
-      await onDone?.(value)
-    } catch (err) {
-      setError(err.message)
-    }
-    setBusy(false)
-  }
-
-  const first = firstName(friend.name)
-  if (answered) {
-    return (
-      <div className="notice">
-        {answered === 'not_yet'
-          ? `No problem. ${first} stays on your list.`
-          : `Lovely. Hope it turns into a real catch-up with ${first}.`}
-      </div>
-    )
+  if (a.phase !== 'idle') {
+    return <AnswerDone message={quietMessage(a.answer, first)} answer={a} friend={friend} />
   }
 
   return (
@@ -49,20 +29,15 @@ export default function AnswerCard({ friend, question, source, itemId = null, on
         <strong>{question ?? `Did you reach ${first}?`}</strong>
         {note && <span className="muted"> {note}</span>}
       </p>
-      {error && <p className="error">{error}</p>}
+      {a.error && <p className="error">{a.error}</p>}
       <div className="answer-options">
-        {YES.map((a) => (
-          <button
-            key={a.value}
-            className="btn btn-secondary"
-            disabled={busy}
-            onClick={() => answer(a.value)}
-          >
-            {a.label}
+        {YES.map((y) => (
+          <button key={y.value} className="btn btn-secondary" onClick={() => a.give(y.value)}>
+            {y.label}
           </button>
         ))}
       </div>
-      <button className="btn-quiet" disabled={busy} onClick={() => answer('not_yet')}>
+      <button className="btn-quiet" onClick={() => a.give('not_yet')}>
         Not yet
       </button>
     </div>

@@ -3,22 +3,8 @@ import { DEFAULT_FREQUENCY } from '../../supabase/functions/_shared/pick.ts'
 import { eventContext, localDate, logEvent } from './events'
 import { planSchedule } from './schedule'
 
-export const CATEGORIES = ['friend', 'mentor', 'family', 'abroad']
-
-export const DEFAULT_CADENCE = {
-  friend: 60,
-  mentor: 90,
-  family: 30,
-  abroad: 45,
-}
-
-/** Mirrors default_style_for() in the database, which fills this in if we don't. */
-export const DEFAULT_STYLE = {
-  friend: 'hang',
-  mentor: 'check_in',
-  family: 'call',
-  abroad: 'check_in',
-}
+export { CATEGORIES, DEFAULT_CADENCE, DEFAULT_STYLE } from './categories'
+import { DEFAULT_CADENCE, DEFAULT_STYLE } from './categories'
 
 function unwrap({ data, error }) {
   if (error) throw new Error(error.message)
@@ -46,7 +32,9 @@ export async function getFriend(id) {
 
 export async function addFriend({
   name,
+  nickname,
   category,
+  cadence,
   city,
   notes,
   phone,
@@ -67,6 +55,7 @@ export async function addFriend({
       .insert({
         user_id: userId,
         name: name.trim(),
+        nickname: nickname?.trim() || null,
         category,
         city: city?.trim() || null,
         notes: notes?.trim() || null,
@@ -77,9 +66,19 @@ export async function addFriend({
       .single(),
   )
 
-  await scheduleOrUndo([friend], [{ friend, lastTalked }])
+  // The trigger seeds the category's rhythm; a different one chosen at add replaces it
+  // before the first due date is worked out from it.
+  const rhythm = cadence ?? DEFAULT_CADENCE[category]
+  if (rhythm !== DEFAULT_CADENCE[category]) {
+    await supabase.from('reminder_settings').update({ cadence_days: rhythm }).eq('friend_id', friend.id)
+  }
+
+  await scheduleOrUndo([friend], [{ friend, lastTalked, cadence: rhythm }])
   if (birthday) await saveBirthday(friend.id, birthday)
-  logEvent('friend_added', { friendId: friend.id, props: { source, category, last_talked: lastTalked } })
+  logEvent('friend_added', {
+    friendId: friend.id,
+    props: { source, category, cadence: rhythm, style: friend.nudge_style, last_talked: lastTalked, nickname: Boolean(friend.nickname) },
+  })
   return friend
 }
 
@@ -158,9 +157,9 @@ async function scheduleNew(entries) {
 
   const newIds = new Set(entries.map((e) => e.friend.id))
   const plan = planSchedule(
-    entries.map(({ friend, lastTalked }) => ({
+    entries.map(({ friend, lastTalked, cadence }) => ({
       key: friend.id,
-      cadence: DEFAULT_CADENCE[friend.category],
+      cadence: cadence ?? DEFAULT_CADENCE[friend.category],
       lastTalked,
     })),
     {
@@ -312,7 +311,7 @@ export function birthdayISO(friend) {
  */
 export async function updateFriend(
   id,
-  { name, category, city, notes, phone, nudgeStyle, birthday },
+  { name, nickname, category, city, notes, phone, nudgeStyle, birthday },
   previous,
 ) {
   const friend = unwrap(
@@ -320,6 +319,7 @@ export async function updateFriend(
       .from('friends')
       .update({
         name: name.trim(),
+        nickname: nickname?.trim() || null,
         category,
         city: city?.trim() || null,
         notes: notes?.trim() || null,
@@ -477,4 +477,101 @@ export async function setCadence(friendId, cadenceDays) {
       .select()
       .single(),
   )
+}
+
+// ------------------------------------------------------------------ leads on
+
+/** This user's contacts from the last two weeks, newest first, any kind. */
+export async function listRecentInteractions() {
+  const since = new Date()
+  since.setDate(since.getDate() - 14)
+  return unwrap(
+    await supabase
+      .from('interactions')
+      .select('id, friend_id, date, kind, outcome, outcome_at')
+      .gte('date', localDate(since))
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false }),
+  )
+}
+
+/** "Did they write back?" outcome: 'replied' | 'no_reply' | 'not_yet'. */
+export async function setReplyOutcome(interaction, outcome) {
+  unwrap(
+    await supabase
+      .from('interactions')
+      .update({ outcome, outcome_at: new Date().toISOString() })
+      .eq('id', interaction.id)
+      .select()
+      .single(),
+  )
+  logEvent('reply_answered', { friendId: interaction.friend_id, props: { outcome } })
+}
+
+/**
+ * "We made a plan." The person rests until the day (the same thing a snooze does), and
+ * the day after, the app asks how it was. The plan counts as contact only when it happens.
+ */
+export async function bookPlan(friendId, onDate) {
+  unwrap(await supabase.from('plans').insert({ friend_id: friendId, on_date: onDate }).select().single())
+  unwrap(
+    await supabase
+      .from('reminder_settings')
+      .update({ snoozed_until: onDate })
+      .eq('friend_id', friendId)
+      .select()
+      .single(),
+  )
+  const today = new Date(`${localDate()}T00:00:00`)
+  const daysAhead = Math.round((new Date(`${onDate}T00:00:00`) - today) / 86400000)
+  logEvent('plan_booked', { friendId, props: { days_ahead: daysAhead } })
+}
+
+export async function listOpenPlans() {
+  return unwrap(
+    await supabase
+      .from('plans')
+      .select('id, friend_id, on_date, outcome')
+      .is('outcome', null)
+      .order('on_date', { ascending: false }),
+  )
+}
+
+/** "How was it?" outcome: 'happened' (logged as time together on that day) | 'didnt_happen'. */
+export async function answerPlan(plan, outcome) {
+  unwrap(
+    await supabase
+      .from('plans')
+      .update({ outcome, answered_at: new Date().toISOString() })
+      .eq('id', plan.id)
+      .select()
+      .single(),
+  )
+  if (outcome === 'happened') {
+    unwrap(
+      await supabase
+        .from('interactions')
+        .insert({ friend_id: plan.friend_id, date: plan.on_date, kind: 'caught_up' })
+        .select()
+        .single(),
+    )
+  }
+  logEvent('plan_answered', { friendId: plan.friend_id, props: { outcome } })
+}
+
+/**
+ * "Next time, ask about..." in the user's own words. It is what a reason-arm push
+ * suggests asking about. The words themselves are never logged, only that one was saved.
+ */
+export async function saveAskAbout(friendId, text) {
+  const value = text?.trim() || null
+  unwrap(
+    await supabase
+      .from('friends')
+      .update({ ask_about: value, ask_about_at: value ? new Date().toISOString() : null })
+      .eq('id', friendId)
+      .select()
+      .single(),
+  )
+  logEvent('ask_about_saved', { friendId, props: { cleared: !value } })
 }

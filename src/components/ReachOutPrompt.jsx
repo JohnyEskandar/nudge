@@ -5,12 +5,12 @@ import { doneMessage, pendingQuestion } from '../lib/useReachOut'
  * is recorded as contact.
  */
 export default function ReachOutPrompt({ friend, pending, done, busy, onConfirm }) {
-  if (done?.id === friend.id) return <div className="notice">{doneMessage(done.yes, friend.name)}</div>
+  if (done?.id === friend.id) return <div className="notice">{doneMessage(done.yes, friend)}</div>
   if (pending?.id !== friend.id) return null
   return (
     <div className="notice">
       <p>
-        <strong>{pendingQuestion(pending.how, friend.name)}</strong>
+        <strong>{pendingQuestion(pending.how, friend)}</strong>
       </p>
       <div className="row">
         <button className="btn" style={{ width: 'auto' }} disabled={busy} onClick={() => onConfirm(friend, true)}>

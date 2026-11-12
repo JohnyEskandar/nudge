@@ -1,26 +1,32 @@
-import { CATEGORIES, DEFAULT_STYLE } from '../lib/api'
-import { NUDGE_STYLES, STYLE_DESCRIPTION, STYLE_LABEL } from '../lib/share'
+import { CATEGORIES, CATEGORY_LABEL, DEFAULT_CADENCE, DEFAULT_STYLE } from '../lib/categories'
+import { rhythmOptions } from '../lib/rhythm'
+import { REACH } from '../lib/share'
 import LastTalkedField from './LastTalkedField'
 
 /**
- * The fields that describe a friend. Shared by Add and Edit so the two can't drift
- * apart — a field added here shows up in both.
+ * The fields that describe someone. Shared by Add and Edit so the two can't drift apart.
+ *
+ * The questions are the ones people actually answer: who they are to you, how often you
+ * want to catch up, and how you usually reach them. Underneath they are still category,
+ * cadence_days and nudge_style.
  */
-export default function FriendForm({ values, onChange, hint, askLastTalked = false }) {
+export default function FriendForm({ values, onChange, hint, askLastTalked = false, askRhythm = false }) {
   const set = (key) => (e) => onChange({ ...values, [key]: e.target.value })
 
   /**
-   * Category suggests a style (family → call, mentor → check-in), but only while the
-   * style is still whatever the old category suggested. Once it's been chosen
-   * deliberately, changing category leaves it alone — the same rule the cadence follows.
+   * Who they are suggests a rhythm (family, monthly) and a way of reaching them (family,
+   * a call), but only while those are still the suggestion. Once chosen deliberately,
+   * changing who they are leaves them alone.
    */
   function onCategoryChange(e) {
     const category = e.target.value
     const styleWasSuggested = values.nudgeStyle === DEFAULT_STYLE[values.category]
+    const rhythmWasSuggested = values.cadence == null || values.cadence === DEFAULT_CADENCE[values.category]
     onChange({
       ...values,
       category,
       nudgeStyle: styleWasSuggested ? DEFAULT_STYLE[category] : values.nudgeStyle,
+      cadence: rhythmWasSuggested ? DEFAULT_CADENCE[category] : values.cadence,
     })
   }
 
@@ -33,18 +39,33 @@ export default function FriendForm({ values, onChange, hint, askLastTalked = fal
           type="text"
           value={values.name}
           onChange={set('name')}
-          placeholder="Sam Okafor"
+          placeholder="Grace Okafor"
           required
           autoFocus
         />
       </div>
 
       <div className="field">
-        <label htmlFor="category">Category</label>
+        <label htmlFor="nickname">What you call them (optional)</label>
+        <input
+          id="nickname"
+          type="text"
+          value={values.nickname ?? ''}
+          onChange={set('nickname')}
+          placeholder="Mom, Gran, An"
+          maxLength={40}
+        />
+        <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
+          Used in your drafts and nudges.
+        </p>
+      </div>
+
+      <div className="field">
+        <label htmlFor="category">Who are they to you?</label>
         <select id="category" value={values.category} onChange={onCategoryChange}>
           {CATEGORIES.map((c) => (
             <option key={c} value={c}>
-              {c[0].toUpperCase() + c.slice(1)}
+              {CATEGORY_LABEL[c]}
             </option>
           ))}
         </select>
@@ -55,6 +76,23 @@ export default function FriendForm({ values, onChange, hint, askLastTalked = fal
         )}
       </div>
 
+      {askRhythm && (
+        <div className="field">
+          <label htmlFor="cadence">How often do you want to catch up?</label>
+          <select
+            id="cadence"
+            value={values.cadence ?? DEFAULT_CADENCE[values.category]}
+            onChange={(e) => onChange({ ...values, cadence: Number(e.target.value) })}
+          >
+            {rhythmOptions(values.cadence).map((r) => (
+              <option key={r.days} value={r.days}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {askLastTalked && (
         <LastTalkedField
           value={values.lastTalked}
@@ -63,22 +101,17 @@ export default function FriendForm({ values, onChange, hint, askLastTalked = fal
       )}
 
       <div className="field">
-        <label htmlFor="nudgeStyle">How you keep in touch</label>
+        <label htmlFor="nudgeStyle">How do you usually reach them?</label>
         <select id="nudgeStyle" value={values.nudgeStyle} onChange={set('nudgeStyle')}>
-          {NUDGE_STYLES.map((s) => (
-            <option key={s} value={s}>
-              {STYLE_LABEL[s]}
+          {REACH.map((r) => (
+            <option key={r.style} value={r.style}>
+              {r.label}
             </option>
           ))}
         </select>
-        <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
-          {STYLE_DESCRIPTION[values.nudgeStyle]}
-        </p>
       </div>
 
-      {/* Always offered, not just for the call style: any friend can be phoned on a
-          given week, and hiding the field left the "Give them a call" button telling you
-          to add a number with nowhere to add it. */}
+      {/* Always offered, not just for calls: any person can be phoned on a given week. */}
       <div className="field">
         <label htmlFor="phone">Phone (optional)</label>
         <input
@@ -96,12 +129,7 @@ export default function FriendForm({ values, onChange, hint, askLastTalked = fal
 
       <div className="field">
         <label htmlFor="birthday">Birthday (optional)</label>
-        <input
-          id="birthday"
-          type="date"
-          value={values.birthday}
-          onChange={set('birthday')}
-        />
+        <input id="birthday" type="date" value={values.birthday} onChange={set('birthday')} />
         <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
           On the day, Nudge reminds you once. The best excuse there is to reach out.
         </p>
@@ -109,13 +137,7 @@ export default function FriendForm({ values, onChange, hint, askLastTalked = fal
 
       <div className="field">
         <label htmlFor="city">City (optional)</label>
-        <input
-          id="city"
-          type="text"
-          value={values.city}
-          onChange={set('city')}
-          placeholder="Lisbon"
-        />
+        <input id="city" type="text" value={values.city} onChange={set('city')} placeholder="Lisbon" />
       </div>
 
       <div className="field">

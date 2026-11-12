@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { recordAnswer } from './api'
 import { logEvent } from './events'
-import { composeMessage, firstName, shareMessage } from './share'
+import { callName, composeMessage, draftKind, shareMessage } from './share'
 
 /**
  * The reach-out loop, in one place for Today and the person's page.
@@ -32,16 +32,21 @@ export function useReachOut(onDone) {
     try {
       if (style === 'call') {
         if (!friend.phone) {
-          setError(`No number for ${firstName(friend.name)} yet. Add one, or log the call.`)
+          setError(`No number for ${callName(friend)} yet. Add one, or log the call.`)
           return
         }
         // The <a href="tel:"> is doing the dialling; this only notes the tap.
         logEvent('call_tapped', { friendId: friend.id })
         setPending({ id: friend.id, how: 'called' })
       } else {
-        const how = await shareMessage(composeMessage(friend.name, style, { category: friend.category }))
+        const draft = composeMessage(friend.name, style, {
+          category: friend.category,
+          nickname: friend.nickname,
+          birthday: friend.birthday_in_days === 0,
+        })
+        const how = await shareMessage(draft)
         if (how === 'cancelled') return
-        logEvent('share_opened', { friendId: friend.id, props: { how, style } })
+        logEvent('share_opened', { friendId: friend.id, props: { how, style, draft: draftKind(friend, style) } })
         setPending({ id: friend.id, how })
       }
     } catch (err) {
@@ -78,17 +83,17 @@ export function useReachOut(onDone) {
 }
 
 /** The question after the share sheet, the clipboard or the dialler. */
-export function pendingQuestion(how, name) {
-  const first = firstName(name)
+export function pendingQuestion(how, friend) {
+  const first = callName(friend)
   if (how === 'called') return `Did you get through to ${first}?`
   if (how === 'copied') return `Message copied. Paste it to ${first}, then come back: did it go through?`
   return `Did your message to ${first} go through?`
 }
 
 /** What to say after the answer. */
-export function doneMessage(yes, name) {
-  const first = firstName(name)
+export function doneMessage(yes, friend) {
+  const first = callName(friend)
   return yes
-    ? `Lovely. Hope it turns into a real catch-up with ${first}.`
+    ? `Nice. Nudge will leave ${first} alone for a while.`
     : `No problem. ${first} stays on your list.`
 }

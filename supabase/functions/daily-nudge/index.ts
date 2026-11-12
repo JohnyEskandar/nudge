@@ -36,6 +36,13 @@ const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:nudge@example.com
 
 /** PostgREST returns at most max_rows per request (1000 by default), so read in pages. */
 const PAGE = 1000
+/**
+ * The H2 reason arm: half of new episodes get a reason in the push when the user saved
+ * something to ask about. Switched on Nov 12, 2026; set false to send plain copy to both.
+ * Drawing the arm never changes who is picked or held out (pick.ts draws the holdout first).
+ */
+const REASON_ARM = true
+
 /** How far back items are read: covers the 7-day cooldown and weekly pace with room. */
 const LOOKBACK_DAYS = 14
 
@@ -116,7 +123,7 @@ Deno.serve(async (req) => {
           admin
             .from('friend_overview')
             .select(
-              'id, user_id, name, nudge_style, days_overdue, paused, birthday_in_days, snoozed_until',
+              'id, user_id, name, nickname, ask_about, nudge_style, days_overdue, paused, birthday_in_days, snoozed_until',
             )
             .or('days_overdue.gte.0,birthday_in_days.eq.0')
             .order('id'),
@@ -208,10 +215,25 @@ Deno.serve(async (req) => {
         openEpisodes: (episodesBy.get(userId) ?? []).map((e) => ({ ...e, friend_id: e.friend_id ?? '' })),
         recentItems: (itemsBy.get(userId) ?? []).map((i) => ({ ...i, friend_id: i.friend_id ?? '' })),
       },
-      { random: Math.random, newId: () => crypto.randomUUID() },
+      { random: Math.random, newId: () => crypto.randomUUID(), reasonArm: REASON_ARM },
     )
 
     if (decision.skipped) counts.skipped[decision.skipped] = (counts.skipped[decision.skipped] ?? 0) + 1
+
+    // Worked out before anything is written, so the pushed item records which copy it got.
+    const payload = decision.push
+      ? pushPayload({
+          friendId: decision.push.friend.id,
+          name: decision.push.friend.name,
+          nickname: decision.push.friend.nickname,
+          style: decision.push.friend.nudge_style,
+          reason: decision.push.reason,
+          itemId: decision.push.item_id,
+          copyVariant: decision.push.copy_variant,
+          askAbout: decision.push.friend.ask_about,
+          seed,
+        })
+      : null
 
     try {
       for (const reason of ['not_due', 'holdout_window_end'] as const) {
@@ -233,7 +255,13 @@ Deno.serve(async (req) => {
       if (decision.items.length) {
         const { error } = await admin
           .from('nudge_items')
-          .insert(decision.items.map((i) => ({ ...i, user_id: userId })))
+          .insert(
+            decision.items.map((i) => ({
+              ...i,
+              user_id: userId,
+              copy_used: payload && i.id === decision.push?.item_id ? payload.copyUsed : null,
+            })),
+          )
         if (error?.code === '23505') {
           // Another run already pushed this user today (nudge_items_one_push_a_day).
           // Undo the episodes this run opened, so nobody is left held out by a loser.
@@ -253,16 +281,9 @@ Deno.serve(async (req) => {
     counts.holdouts += decision.newEpisodes.filter((e) => e.assignment === 'holdout').length
 
     const push = decision.push
-    if (!push) continue
-
-    const payload = pushPayload({
-      friendId: push.friend.id,
-      name: push.friend.name,
-      style: push.friend.nudge_style,
-      reason: push.reason,
-      itemId: push.item_id,
-      seed,
-    })
+    if (!push || !payload) continue
+    // copyUsed is for the record, not for the phone.
+    const { copyUsed: _copyUsed, ...message } = payload
 
     let delivered = false
     const devices = subsBy.get(userId) ?? []
@@ -281,7 +302,7 @@ Deno.serve(async (req) => {
       })()
       try {
         const subscriber = appServer.subscribe(row.subscription as webpush.PushSubscription)
-        await subscriber.pushTextMessage(JSON.stringify(payload), {})
+        await subscriber.pushTextMessage(JSON.stringify(message), {})
         await logSend({ item_id: push.item_id, user_id: userId, subscription_host: host, status: 'sent', http_status: 201, error: null })
         counts.sent++
         delivered = true

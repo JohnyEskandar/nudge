@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   birthdayISO,
@@ -13,7 +13,8 @@ import {
   snoozeFriend,
   updateFriend,
 } from '../lib/api'
-import { NUDGE_STYLES } from '../lib/share'
+import { callName, NUDGE_STYLES } from '../lib/share'
+import { rhythmLabel, rhythmOptions } from '../lib/rhythm'
 import {
   birthdayLabel,
   dueLabel,
@@ -25,10 +26,16 @@ import {
 } from '../lib/format'
 import { useReachOut } from '../lib/useReachOut'
 import { logEvent } from '../lib/events'
+import { deferred } from '../lib/deferred'
+import { UNDO_MS } from '../lib/useAnswer'
 import ReachOutAction from '../components/ReachOutAction'
 import ReachOutPrompt from '../components/ReachOutPrompt'
 import AnswerCard from '../components/AnswerCard'
 import AlreadyDidIt from '../components/AlreadyDidIt'
+import AskAbout from '../components/AskAbout'
+import PlanPicker from '../components/PlanPicker'
+import { waitingOnReply } from '../lib/leadOn'
+import { setReplyOutcome } from '../lib/api'
 import SnoozeActions from '../components/SnoozeActions'
 import FriendForm from '../components/FriendForm'
 
@@ -41,8 +48,8 @@ function cadenceHint(friend, draftCategory) {
 
   const cadenceIsStillDefault = friend.cadence_days === DEFAULT_CADENCE[friend.category]
   return cadenceIsStillDefault
-    ? `Saving also moves the reminder to every ${DEFAULT_CADENCE[draftCategory]} days.`
-    : `Your ${friend.cadence_days}-day reminder stays as it is.`
+    ? `Saving also changes how often to: ${rhythmLabel(DEFAULT_CADENCE[draftCategory]).toLowerCase()}.`
+    : `How often stays as you set it: ${rhythmLabel(friend.cadence_days).toLowerCase()}.`
 }
 
 export default function FriendDetail() {
@@ -57,6 +64,7 @@ export default function FriendDetail() {
   const [error, setError] = useState(null)
 
   const [logging, setLogging] = useState(false)
+  const [planning, setPlanning] = useState(false)
   const [logDate, setLogDate] = useState(todayISO())
   const [logNote, setLogNote] = useState('')
   const [saving, setSaving] = useState(false)
@@ -162,6 +170,7 @@ export default function FriendDetail() {
   function startEditing() {
     setDraft({
       name: friend.name,
+      nickname: friend.nickname ?? '',
       category: friend.category,
       nudgeStyle: friend.nudge_style,
       phone: friend.phone ?? '',
@@ -190,13 +199,32 @@ export default function FriendDetail() {
     setSavingEdit(false)
   }
 
-  async function onDeleteFriend() {
-    if (!confirm(`Remove ${friend.name} from your people? This can't be undone.`)) return
-    try {
-      await deleteFriend(id)
-      navigate('/', { replace: true })
-    } catch (err) {
-      setError(err.message)
+  // Undo beats confirm: removing waits a few seconds with an Undo, then goes through.
+  // Leaving the page in that window removes them at once, as asked.
+  const [removing, setRemoving] = useState(false)
+  const removal = useRef(null)
+  if (!removal.current) {
+    removal.current = deferred(async () => {
+      try {
+        await deleteFriend(id)
+        navigate('/', { replace: true })
+      } catch (err) {
+        setError(err.message)
+        setRemoving(false)
+      }
+    }, UNDO_MS)
+  }
+  useEffect(() => () => removal.current.flush(), [])
+
+  function onDeleteFriend() {
+    setRemoving(true)
+    removal.current.start(id)
+  }
+
+  function undoDelete() {
+    if (removal.current.undo()) {
+      logEvent('answer_undone', { friendId: id, props: { answer: 'remove' } })
+      setRemoving(false)
     }
   }
 
@@ -224,6 +252,17 @@ export default function FriendDetail() {
 
   const due = dueLabel(friend.days_overdue)
   const cadenceChanged = cadenceDraft !== String(friend.cadence_days)
+  const waiting = waitingOnReply(interactions, todayISO())
+
+  async function onTheyWroteBack() {
+    setError(null)
+    try {
+      await setReplyOutcome(interactions[0], 'replied')
+      await load()
+    } catch (err) {
+      setError(err.message)
+    }
+  }
 
   // Editing takes over the screen rather than sitting alongside the read-only view —
   // otherwise notes would be on the page twice, once editable and once not.
@@ -291,10 +330,9 @@ export default function FriendDetail() {
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="friend-top">
           <span className="muted">
-            {lastContactLabel(friend.days_since_contact, Boolean(friend.last_interaction_date))}
+            {lastContactLabel(friend.last_interaction_date)}
           </span>
           <span className={due.due ? 'status due' : 'status'}>
-            {due.due && <span className="dot" />}
             {due.text}
           </span>
         </div>
@@ -307,6 +345,15 @@ export default function FriendDetail() {
           <p className="starter">Last time: “{excerpt(friend.last_note)}”</p>
         )}
 
+        {waiting && (
+          <div className="quiet-row" style={{ marginTop: 12, alignItems: 'center' }}>
+            <span className="tag tag-state">Waiting to hear back</span>
+            <button className="btn-quiet" onClick={onTheyWroteBack}>
+              They wrote back
+            </button>
+          </div>
+        )}
+
         <div className="spacer" />
 
         {fromPush && (
@@ -315,7 +362,7 @@ export default function FriendDetail() {
               friend={friend}
               itemId={fromPush}
               source="push"
-              question={`Did you already reach ${friend.name.split(/\s+/)[0]}?`}
+              question={`Did you already reach ${callName(friend)}?`}
               onDone={onPushAnswered}
             />
           </div>
@@ -334,7 +381,7 @@ export default function FriendDetail() {
             <ReachOutAction
               style={friend.nudge_style}
               phone={friend.phone}
-              primary
+              primary={!fromPush}
               busy={busyId === friend.id}
               onAct={(style) => reachOut(friend, style)}
             />
@@ -361,13 +408,32 @@ export default function FriendDetail() {
                 cadenceDays={friend.cadence_days}
                 busy={busyId === friend.id}
                 onSnooze={onSnooze}
+                friend={friend}
+                onLetGo={load}
               />
             )}
 
             <div className="spacer" />
-            <button className="btn-quiet" onClick={() => setLogging(true)}>
-              Log a catch-up that already happened
-            </button>
+            {planning ? (
+              <PlanPicker
+                friend={friend}
+                onCancel={() => setPlanning(false)}
+                onDone={async () => {
+                  setPlanning(false)
+                  await load()
+                }}
+              />
+            ) : (
+              <div className="quiet-row">
+                <button className="btn-quiet" onClick={() => setPlanning(true)}>
+                  We made a plan
+                </button>
+                <button className="btn-quiet" onClick={() => setLogging(true)}>
+                  Log a catch-up that already happened
+                </button>
+              </div>
+            )}
+            <AskAbout friend={friend} onSaved={load} />
           </>
         ) : (
           <form onSubmit={onLog}>
@@ -408,18 +474,19 @@ export default function FriendDetail() {
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
-        <h2>Remind me every</h2>
+        <h2>How often you want to catch up</h2>
         <div className="row">
-          <input
-            type="number"
-            min="1"
-            max="3650"
+          <select
             value={cadenceDraft}
             onChange={(e) => setCadenceDraft(e.target.value)}
-            style={{ width: 96 }}
-            aria-label="Cadence in days"
-          />
-          <span className="muted">days</span>
+            aria-label="How often you want to catch up"
+          >
+            {rhythmOptions(friend.cadence_days).map((r) => (
+              <option key={r.days} value={r.days}>
+                {r.label}
+              </option>
+            ))}
+          </select>
           {cadenceChanged && (
             <button
               className="btn"
@@ -484,9 +551,18 @@ export default function FriendDetail() {
       </div>
 
       <div className="center" style={{ marginTop: 32 }}>
-        <button className="btn-danger-quiet" onClick={onDeleteFriend}>
-          Remove {friend.name}
-        </button>
+{removing ? (
+          <div className="notice" role="status">
+            <p style={{ marginTop: 0, marginBottom: 8 }}>Removing {friend.name}.</p>
+            <button className="btn-quiet" onClick={undoDelete}>
+              Undo
+            </button>
+          </div>
+        ) : (
+          <button className="btn-danger-quiet" onClick={onDeleteFriend}>
+            Remove {friend.name}
+          </button>
+        )}
       </div>
     </>
   )

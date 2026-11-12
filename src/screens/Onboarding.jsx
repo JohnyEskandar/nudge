@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { addFriend, CATEGORIES, DEFAULT_CADENCE, DEFAULT_STYLE, listFriends } from '../lib/api'
-import { nudgeTitle, STYLE_DESCRIPTION } from '../lib/share'
+import { CATEGORY_LABEL } from '../lib/categories'
+import { rhythmOptions } from '../lib/rhythm'
+import { nudgeTitle } from '../lib/share'
 import PushOptIn from '../components/PushOptIn'
 import LastTalkedField from '../components/LastTalkedField'
 import { BODY_LINES } from '../../supabase/functions/_shared/copy.ts'
@@ -24,6 +26,7 @@ export default function Onboarding() {
   const [name, setName] = useState('')
   const [category, setCategory] = useState('friend')
   const [lastTalked, setLastTalked] = useState(null)
+  const [cadence, setCadence] = useState(DEFAULT_CADENCE.friend)
   const [added, setAdded] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -53,12 +56,14 @@ export default function Onboarding() {
         city: '',
         notes: '',
         phone: '',
+        cadence,
         lastTalked,
         source: 'onboarding',
       })
       setAdded([...added, friend])
       setName('')
       setCategory('friend')
+      setCadence(DEFAULT_CADENCE.friend)
       setLastTalked(null)
     } catch (err) {
       setError(err.message)
@@ -72,9 +77,9 @@ export default function Onboarding() {
       <>
         <h1>Who would you miss?</h1>
         <p className="sub">
-          Start with five. A parent, a grandparent, a brother or sister, an old best friend,
-          the friend who moved away. You can add more later, and nobody is told
-          they&rsquo;re on your list.
+          Start with the 3 to 8 people you&rsquo;d miss most: a parent, a grandparent, a
+          brother or sister, an old best friend, the friend who moved away. You can add more
+          later, and nobody is told they&rsquo;re on your list.
         </p>
 
         {error && <div className="error">{error}</div>}
@@ -93,22 +98,34 @@ export default function Onboarding() {
           </div>
 
           <div className="field">
-            <label htmlFor="category">How do you know them?</label>
+            <label htmlFor="category">Who are they to you?</label>
             <select
               id="category"
               value={category}
-              onChange={(e) => setCategory(e.target.value)}
+              onChange={(e) => {
+                const next = e.target.value
+                // The rhythm follows who they are until it is chosen deliberately.
+                if (cadence === DEFAULT_CADENCE[category]) setCadence(DEFAULT_CADENCE[next])
+                setCategory(next)
+              }}
             >
               {CATEGORIES.map((c) => (
                 <option key={c} value={c}>
-                  {c[0].toUpperCase() + c.slice(1)}
+                  {CATEGORY_LABEL[c]}
                 </option>
               ))}
             </select>
-            <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
-              {STYLE_DESCRIPTION[DEFAULT_STYLE[category]]} About every{' '}
-              {DEFAULT_CADENCE[category]} days, until you change it.
-            </p>
+          </div>
+
+          <div className="field">
+            <label htmlFor="cadence">How often do you want to catch up?</label>
+            <select id="cadence" value={cadence} onChange={(e) => setCadence(Number(e.target.value))}>
+              {rhythmOptions(cadence).map((r) => (
+                <option key={r.days} value={r.days}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <LastTalkedField value={lastTalked} onChange={setLastTalked} />
@@ -138,7 +155,7 @@ export default function Onboarding() {
               <div className="friend-card" key={f.id}>
                 <div className="friend-top">
                   <span className="friend-name">{f.name}</span>
-                  <span className="status">about every {DEFAULT_CADENCE[f.category]} days</span>
+                  <span className="status">{CATEGORY_LABEL[f.category]}</span>
                 </div>
               </div>
             ))}
@@ -204,8 +221,8 @@ export default function Onboarding() {
     <>
       <h1>One last thing</h1>
       <p className="sub">
-        A nudge is no use if it can&rsquo;t reach you. These nudges are the only
-        notifications Nudge sends.
+        A nudge is no use if it can&rsquo;t reach you. Nudge sends these nudges and, once in
+        a long while, a short note about the app itself. Nothing else.
       </p>
 
       <PushOptIn />

@@ -30,6 +30,9 @@ export type FriendRow = {
   paused: boolean
   birthday_in_days: number | null
   snoozed_until: string | null
+  /** Carried through for the push copy only; never used to pick. */
+  nickname?: string | null
+  ask_about?: string | null
 }
 
 export type OpenEpisode = {

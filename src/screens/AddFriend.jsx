@@ -7,7 +7,9 @@ export default function AddFriend() {
   const navigate = useNavigate()
   const [values, setValues] = useState({
     name: '',
+    nickname: '',
     category: 'friend',
+    cadence: DEFAULT_CADENCE.friend,
     nudgeStyle: DEFAULT_STYLE.friend,
     phone: '',
     birthday: '',
@@ -49,7 +51,7 @@ export default function AddFriend() {
           values={values}
           onChange={setValues}
           askLastTalked
-          hint={`Comes up about every ${DEFAULT_CADENCE[values.category]} days. You can change this later.`}
+          askRhythm
         />
 
         <button className="btn" type="submit" disabled={saving || !values.name.trim()}>
